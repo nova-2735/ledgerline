@@ -61,7 +61,7 @@ export function Inbox() {
   const filtered = all.filter(item => hasFolder(item, folder) && [
     item.doc?.sender_name, item.doc?.subject, item.doc?.filename, item.doc?.title, item.run?.vendor_name, item.run?.display_id, item.run?.invoice_number,
   ].some(value => value?.toLowerCase().includes(search.trim().toLowerCase())))
-  const entry = selected === null ? undefined : filtered.find(item => item.key === selected) ?? filtered[0]
+  const entry = selected === null ? undefined : filtered.find(item => item.key === (selected ?? params.get('doc'))) ?? filtered[0]
   const currentId = entry?.doc?.processed_run_ids.at(-1) ?? entry?.run?.id
   const detail = useRun(currentId ?? 0)
 

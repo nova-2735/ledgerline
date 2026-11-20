@@ -6,6 +6,7 @@ import { AppShell, restoreAccessCode } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(module => ({ default: module.Dashboard })))
+const HowItWorks = lazy(() => import('@/pages/HowItWorks'))
 const Inbox = lazy(() => import('@/pages/Inbox').then(module => ({ default: module.Inbox })))
 const Runs = lazy(() => import('@/pages/Runs').then(module => ({ default: module.Runs })))
 const RunView = lazy(() => import('@/pages/RunView').then(module => ({ default: module.RunView })))
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="purchase-orders" element={<PurchaseOrders />} />
             <Route path="purchase-orders/:po" element={<PoDetail />} />
             <Route path="vendors" element={<Vendors />} />
+            <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="policy" element={<Policy />} />
             <Route path="*" element={<div className="panel p-6"><h1 className="page-title">Page not found</h1><Link to="/" className="mt-2 inline-block text-indigo-700 hover:underline">Go to dashboard</Link></div>} />
           </Route>

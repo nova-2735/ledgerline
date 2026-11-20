@@ -1,10 +1,10 @@
-import { ClipboardList, FileStack, LayoutDashboard, List, ListChecks, Mail, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, FileStack, LayoutDashboard, List, ListChecks, Mail, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, Users } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { destinations } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
-const icons = { dashboard: LayoutDashboard, inbox: Mail, runs: List, queue: ListChecks, orders: ClipboardList, vendors: Users, policy: SlidersHorizontal }
+const icons = { dashboard: LayoutDashboard, inbox: Mail, runs: List, queue: ListChecks, orders: ClipboardList, vendors: Users, policy: SlidersHorizontal, guide: BookOpen }
 
 export function AppSidebar({ collapsed, count, toggle, openPalette, showSidebarShortcut }: { collapsed: boolean; count: number; toggle: () => void; openPalette: () => void; showSidebarShortcut: boolean }) {
   const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose
