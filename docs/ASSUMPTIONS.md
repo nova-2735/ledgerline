@@ -57,3 +57,6 @@
 - Because a final APPROVE must carry a posting, a reviewer can't approve an invoice from a vendor that isn't in the vendor master (409 `posting_incomplete`); the vendor has to be onboarded and the invoice re-run first.
 - X01 (same file) uses the same duplicate window as X02/X03: earlier runs whose invoice date is within `window_days` of this invoice's date; runs without a date are kept.
 - A demo reset waits up to 60 s for in-flight runs and reviews before giving up with 409 `reset_timeout`.
+- Container: the image seeds the demo world at build time into `/app/seed-data` (not a configurable setting); on startup, when the SQLite database in `DATA_DIR` is missing, that snapshot is copied in. With an explicit `DATABASE_URL` nothing is restored.
+- Container and Render default to `APP_TODAY=2026-11-20` so the fixed November 2026 demo world keeps its expected outcomes; leave it empty in `.env` for the real date.
+- The smoke test uses the demo inbox documents (S01, S06) through `/api/demo/runs`; against a live provider each fresh read is one model call (cached readings are reused).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
@@ -18,11 +19,13 @@ from app import __version__, clock, db
 from app.api import ROUTERS
 from app.api.deps import APIError, require_access
 from app.config import get_settings
+from app.demo.snapshot import restore_if_missing
 from app.ingest.ocr import ocr_available
 from app.models.api import HealthResponse
 from app.pipeline import runner
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+log = logging.getLogger("uvicorn.error")  # shown by uvicorn's default log config
 
 
 def _health_router() -> APIRouter:
@@ -107,9 +110,23 @@ def _operation_id(route: APIRoute) -> str:
     return route.name
 
 
+def startup_line(restored: bool) -> str:
+    """One log line saying what this instance runs with (provider, model, OCR, data)."""
+    s = get_settings()
+    ocr = "available" if ocr_available() else "not available (the model reads scanned pages)"
+    data = "restored the seeded demo data" if restored else f"data in {s.data_dir}"
+    return (
+        f"Ledgerline {__version__} | {s.app_env.value} | provider {s.llm_provider.value} | "
+        f"model {s.llm_model} / {s.llm_model_light} | OCR {ocr} | {data} | "
+        f"{s.workers} worker{'s' if s.workers != 1 else ''}"
+    )
+
+
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    restored = restore_if_missing(get_settings())
     db.init_db()
+    log.info(startup_line(restored))
     yield
     from app.pipeline import runner
 

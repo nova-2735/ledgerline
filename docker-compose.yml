@@ -1,0 +1,18 @@
+# Local run of the production image: `docker compose up --build`, then open http://localhost:8000.
+services:
+  ledgerline:
+    build: .
+    image: ledgerline
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    # Optional: keep runs and saved model readings across restarts. An empty volume is filled
+    # from the seeded snapshot in the image on first start.
+    # volumes:
+    #   - ledgerline-data:/app/data
+
+# volumes:
+#   ledgerline-data:

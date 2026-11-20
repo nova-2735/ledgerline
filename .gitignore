@@ -24,3 +24,6 @@ __pycache__/
 node_modules/
 dist/
 backend/app/static/
+
+# Build-time demo snapshot (container image only)
+seed-data/

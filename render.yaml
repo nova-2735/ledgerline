@@ -1,0 +1,28 @@
+# Render Blueprint: New → Blueprint → this repository. Set the two secrets when prompted.
+services:
+  - type: web
+    name: ledgerline
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_TODAY
+        value: "2026-11-20"
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: LLM_MODEL_LIGHT
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DEMO_ACCESS_CODE
+        sync: false
+      - key: MAX_LIVE_LLM_CALLS_PER_HOUR
+        value: "60"
+      - key: WORKERS
+        value: "1"

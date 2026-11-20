@@ -1,0 +1,19 @@
+# The Dockerfile copies only web/ and backend/; these keep build output, caches and secrets out.
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.db
+**/*.db-wal
+**/*.db-shm
+backend/app/static
+data
+seed-data
+reports
+.git
+.env
+.env.*
+**/.env

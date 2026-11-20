@@ -76,11 +76,15 @@ eval:
 eval-live:
 	$(UV_RUN) python -m app.eval --provider gemini --force-fresh --out "$(CURDIR)/reports/eval_live.md"
 
+IMAGE ?= ledgerline
+BASE_URL ?= http://localhost:8000
+ACCESS_CODE ?=
+
 docker-build:
-	@echo "make docker-build: available after B13"
+	docker build -t $(IMAGE) .
 
 docker-run:
-	@echo "make docker-run: available after B13"
+	docker run --rm -p 8000:8000 --env-file .env -e DATA_DIR=/app/data -e PORT=8000 $(IMAGE)
 
 smoke:
-	@echo "make smoke: available after B13"
+	$(UV_RUN) python "$(CURDIR)/scripts/smoke.py" --base-url "$(BASE_URL)" --access-code "$(ACCESS_CODE)"
