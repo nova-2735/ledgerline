@@ -12,6 +12,7 @@ import { Panel } from '@/components/Panel'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { RunsTable } from '@/components/RunsTable'
 import { Button } from '@/components/ui/button'
+import { actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
 import { age, dayBefore, dayOutcomes, greatestRisk, outcomeLabels, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
 import { duration, inr, istDate, pct } from '@/lib/format'
 import { actions, reasons, routes } from '@/lib/labels'
@@ -92,7 +93,12 @@ export function Dashboard() {
   const kpis = stats.data?.kpis
   const [review, setReview] = useState<number>()
 
+  const dashboardReviewKeys = Object.fromEntries(reviewActions(review == null ? undefined : runsById.get(review)).flatMap(action => {
+    const key = actionShortcut(action)
+    return key ? [[key, () => void navigate('/queue?focus=' + review + '&action=' + action)]] : []
+  })) as Partial<Record<Shortcut, () => void>>
   useShortcuts({
+    ...dashboardReviewKeys,
     week: () => setPeriod(0), month: () => setPeriod(1), quarter: () => setPeriod(2), all: () => setPeriod(3),
     queueLink: () => void navigate('/queue'),
     open: () => { if (review != null) void navigate('/queue?focus=' + review + '&action=primary') },
@@ -166,8 +172,8 @@ export function Dashboard() {
               <tbody>{[...attention].sort((a, b) => (runsById.get(b.id)?.checks.some(c => c.status === 'fail' && c.severity === 'critical') ? 1 : 0) -
                 (runsById.get(a.id)?.checks.some(c => c.status === 'fail' && c.severity === 'critical') ? 1 : 0) || b.age_hours - a.age_hours).slice(0, 6).map(run => {
                 const detail = runsById.get(run.id)
-                const action = detail?.decision?.handoff?.actions[0]
-                const actionKey = action && action in shortcuts ? action as Shortcut : 'open'
+                const action = primaryReviewAction(detail)
+                const actionKey = (action && actionShortcut(action)) || 'open'
                 return <tr key={run.id} className={cn('table-row hover:bg-muted', review === run.id && 'bg-accent hover:bg-accent')} onFocus={() => setReview(run.id)}>
                   <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate">{run.route ? routes[run.route] : '—'}</span></div></td>
                   <td className="truncate px-2" title={run.vendor_name ?? undefined}><Link className="text-link" to={'/runs/' + run.id}>{run.vendor_name ?? 'Unknown vendor'}</Link></td>

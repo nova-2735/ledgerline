@@ -42,6 +42,7 @@ export const shortcuts = {
   month: { label: 'Last 30 days', keys: ['2'], group: 'Dashboard' },
   quarter: { label: 'Last 90 days', keys: ['3'], group: 'Dashboard' },
   all: { label: 'All available days', keys: ['4'], group: 'Dashboard' },
+  previewMessage: { label: 'Focus message preview', keys: ['Space'], group: 'Inbox' },
   process: { label: 'Process invoice', keys: ['P'], group: 'Inbox' },
   fresh: { label: 'Process with fresh read', keys: ['Shift', 'P'], group: 'Inbox' },
   decision: { label: 'Decision tab', keys: ['1'], group: 'Run view' },

@@ -1,92 +1,89 @@
 import { useRef, useState, type DragEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, ClipboardList, FileText, Layers3, Mail, ScanText, UploadCloud } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { FileText, Search, Upload } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, type Schemas } from '@/api/client'
-import { queryKeys, useInbox, useRun } from '@/api/hooks'
+import { queryKeys, useAllRuns, useInbox, useRun } from '@/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
-import { OutcomeBadge } from '@/components/OutcomeBadge'
+import { OutcomeBadge, StatusSquare } from '@/components/OutcomeBadge'
+import { RowKeys } from '@/components/RowKeys'
+import { ShortcutHint } from '@/components/ShortcutHint'
+import { WorkFolders } from '@/components/WorkFolders'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { istDate, istTime } from '@/lib/format'
+import { Input } from '@/components/ui/input'
+import { inr, istDate, istTime } from '@/lib/format'
+import { effectiveOutcome, type Run } from '@/lib/runList'
+import { rowIndex, useShortcuts } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
-function InboxItem({ item, process, processing, disabled }: {
-  item: Schemas['DemoInboxItem']
-  process: () => void
-  processing: boolean
-  disabled: boolean
-}) {
-  const runId = item.processed_run_ids.at(-1)
-  const run = useRun(runId ?? 0)
-  const initials = item.sender_name.split(/\s+/).filter(word => /^[a-z]/i.test(word)).slice(0, 2).map(word => word[0]).join('')
-  return <li className="flex flex-wrap items-start gap-3 px-4 py-4 sm:flex-nowrap sm:px-5">
-    <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-800">
-      {initials}
-    </span>
-    <div className="min-w-0 flex-1">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h3 className="text-sm font-semibold">{item.sender_name}</h3>
-        <time dateTime={item.received_at} className="text-xs text-muted-foreground tabular-nums">{istDate(item.received_at)} · {istTime(item.received_at)}</time>
-      </div>
-      <p className="mt-1 text-sm font-medium text-slate-800">{item.subject}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex min-w-0 items-center gap-1 rounded-md border px-1.5 py-1 text-xs text-muted-foreground">
-          <FileText aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.filename}</span>
-        </span>
-        {item.tags.map(tag => <span key={tag} className="rounded-md bg-slate-100 px-1.5 py-1 text-xs font-medium text-slate-700">{tag}</span>)}
-        {run.data?.outcome && <OutcomeBadge outcome={run.data.final_outcome ?? run.data.outcome} />}
-      </div>
-    </div>
-    <div className="ml-auto grid shrink-0 justify-items-end gap-2">
-      <Button size="sm" type="button" variant={runId ? 'outline' : 'default'} disabled={disabled} onClick={process}
-        aria-label={`${runId ? 'Process again' : 'Process'} ${item.title}`}>
-        {processing ? 'Starting…' : runId ? 'Process again' : 'Process'}
-      </Button>
-      {runId && <Link className="text-xs font-medium text-indigo-700 hover:underline" to={`/runs/${runId}`}>Open run</Link>}
-    </div>
-  </li>
-}
+type Mail = Schemas['DemoInboxItem']
+type Item = { key: string; doc?: Mail; run?: Run }
 
-const steps = [
-  [ScanText, 'Read the invoice and its line items.'],
-  [Layers3, 'Compare it with vendor records, orders and receipts.'],
-  [ClipboardList, 'Check the totals, GST and duplicate history.'],
-  [CheckCircle2, 'See the decision and who needs to act.'],
+const folders = [
+  ['all', 'All'], ['new', 'Unprocessed'], ['processed', 'Processed'], ['edge', 'Edge cases'], ['uploaded', 'Uploaded'],
 ] as const
 
+function hasFolder(item: Item, folder: string) {
+  if (folder === 'uploaded') return !item.doc
+  if (!item.doc) return false
+  if (folder === 'edge') return item.doc.is_edge_case
+  if (folder === 'new') return !item.doc.processed_run_ids.length
+  if (folder === 'processed') return !!item.doc.processed_run_ids.length
+  return true
+}
+
 export function Inbox() {
-  const queryClient = useQueryClient()
+  const cache = useQueryClient()
   const navigate = useNavigate()
-  const inbox = useInbox()
-  const input = useRef<HTMLInputElement>(null)
+  const messages = useInbox()
+  const runs = useAllRuns(true)
+  const [params, setParams] = useSearchParams()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<string | null>()
   const [forceFresh, setForceFresh] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
-  const invalidateActivity = () => {
-    for (const key of [queryKeys.inbox, queryKeys.runs, queryKeys.stats, queryKeys.queue]) {
-      void queryClient.invalidateQueries({ queryKey: key })
-    }
+  const searchInput = useRef<HTMLInputElement>(null)
+  const uploadInput = useRef<HTMLInputElement>(null)
+  const preview = useRef<HTMLElement>(null)
+
+  const folder = folders.find(([id]) => id === params.get('folder'))?.[0] ?? 'all'
+  const byId = new Map(runs.data?.map(run => [run.id, run]))
+  const mail: Item[] = (messages.data ?? []).map(doc => ({ key: doc.doc_id, doc, run: byId.get(doc.processed_run_ids.at(-1) ?? 0) }))
+  const uploads: Item[] = (runs.data ?? []).filter(run => run.source === 'upload').map(run => ({ key: 'run-' + run.id, run }))
+  const all = [...mail, ...uploads]
+  const filtered = all.filter(item => hasFolder(item, folder) && [
+    item.doc?.sender_name, item.doc?.subject, item.doc?.filename, item.doc?.title, item.run?.vendor_name, item.run?.display_id, item.run?.invoice_number,
+  ].some(value => value?.toLowerCase().includes(search.trim().toLowerCase())))
+  const entry = selected === null ? undefined : filtered.find(item => item.key === selected) ?? filtered[0]
+  const currentId = entry?.doc?.processed_run_ids.at(-1) ?? entry?.run?.id
+  const detail = useRun(currentId ?? 0)
+
+  function invalidateActivity() {
+    for (const queryKey of [queryKeys.inbox, queryKeys.runs, queryKeys.stats, queryKeys.queue]) void cache.invalidateQueries({ queryKey })
   }
+
   const process = useMutation({
-    mutationFn: (docId: string) => api.createDemoRun(docId, forceFresh),
-    onSuccess: ({ run_id }) => { invalidateActivity(); void navigate(`/runs/${run_id}`) },
+    mutationFn: ({ id, fresh }: { id: string; fresh: boolean }) => api.createDemoRun(id, fresh),
+    onSuccess: ({ run_id }) => { invalidateActivity(); void navigate('/runs/' + run_id) },
   })
 
+  function processEntry(fresh: boolean) {
+    if (entry?.doc && !process.isPending && !uploading) process.mutate({ id: entry.doc.doc_id, fresh: fresh || forceFresh })
+  }
+
   async function upload(files: File[]) {
-    if (uploading || !files.length) return
+    if (uploading || process.isPending || !files.length) return
     setUploading(true)
     setUploadErrors([])
     const result = await Promise.allSettled(files.map(async file => {
-      if (!/\.pdf$/i.test(file.name)) throw new Error(`${file.name} must be a PDF.`)
-      if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`)
-      try {
-        return await api.createRun(file, forceFresh)
-      } catch (error) {
-        throw new Error(`${file.name}: ${error instanceof Error ? error.message : 'Upload failed.'}`)
-      }
+      if (!/\.pdf$/i.test(file.name)) throw new Error(file.name + ' must be a PDF.')
+      if (file.size > 10 * 1024 * 1024) throw new Error(file.name + ' exceeds the 10 MB limit.')
+      try { return await api.createRun(file, forceFresh) }
+      catch (error) { throw new Error(file.name + ': ' + (error instanceof Error ? error.message : 'Upload failed.')) }
     }))
     const accepted = result.flatMap(item => item.status === 'fulfilled' ? [item.value.run_id] : [])
     const errors = result.flatMap(item => item.status === 'rejected' ? [String(item.reason.message)] : [])
@@ -94,9 +91,9 @@ export function Inbox() {
     setUploading(false)
     if (accepted.length) {
       invalidateActivity()
-      if (accepted.length > 1) toast.success(`${accepted.length} invoices queued`)
+      if (accepted.length > 1) toast.success(accepted.length + ' invoices queued')
       if (errors.length) toast.error('Some invoices could not be uploaded', { description: errors.join(' ') })
-      void navigate(`/runs/${accepted[0]}`)
+      void navigate('/runs/' + accepted[0])
     }
   }
 
@@ -106,60 +103,116 @@ export function Inbox() {
     void upload(Array.from(event.dataTransfer.files))
   }
 
-  return <div className="space-y-4">
-    <header>
-      <h1 className="page-title">AP inbox</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Process an invoice from the demo inbox or upload your own PDF.</p>
-    </header>
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <section className="panel">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3.5 sm:px-5">
-          <h2 className="section-title flex items-center gap-2"><Mail aria-hidden="true" className="size-4 text-indigo-700" />Invoice emails</h2>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-            <Checkbox checked={forceFresh} onCheckedChange={checked => setForceFresh(checked === true)} />
-            Force fresh read
+  function step(direction: 'next' | 'previous') {
+    const index = filtered.findIndex(item => item.key === entry?.key)
+    const target = filtered[rowIndex(index, filtered.length, direction)]
+    if (target) {
+      setSelected(target.key)
+      document.getElementById('mail-' + target.key)?.scrollIntoView?.({ block: 'nearest' })
+    }
+  }
+  useShortcuts({
+    search: () => searchInput.current?.focus(), next: () => step('next'), previous: () => step('previous'),
+    open: () => { if (currentId) void navigate('/runs/' + currentId) },
+    previewMessage: () => preview.current?.focus(),
+    process: () => processEntry(false), fresh: () => processEntry(true),
+    escape: () => setSelected(null),
+  })
+  const loading = folder === 'uploaded' ? runs.isPending : messages.isPending
+  const error = folder === 'uploaded' ? runs.error : messages.error
+
+  return <div className="page-padding h-full min-h-0">
+    <div className="grid min-h-full grid-cols-1 gap-px border bg-border lg:h-full lg:min-h-0 lg:grid-cols-[200px_minmax(0,1.25fr)_minmax(265px,0.95fr)]">
+      <WorkFolders title="Folders" folders={folders.map(([id, label]) => ({ id, label, count: all.filter(item => hasFolder(item, id)).length }))}
+        active={folder} select={id => { setSelected(undefined); setParams(id === 'all' ? {} : { folder: id }) }} />
+      <section aria-label="Messages" className={cn('flex min-h-0 min-w-0 flex-col bg-card', dragging && 'relative z-10 outline-2 -outline-offset-2 outline-primary')}
+        onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDragging(true) } }}
+        onDragLeave={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false) }} onDrop={drop}>
+        <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 border-b bg-muted px-3">
+          <Upload aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span className="text-meta text-muted-foreground">Drop PDFs or</span>
+          <button type="button" className="text-link text-meta font-medium" disabled={uploading || process.isPending} onClick={() => uploadInput.current?.click()}>{uploading ? 'Uploading…' : 'browse'}</button>
+          <span className="text-meta text-muted-foreground" title="Maximum 10 pages per invoice">· ≤10 MB</span>
+          <input ref={uploadInput} type="file" accept=".pdf,application/pdf" multiple hidden onChange={event => {
+            void upload(Array.from(event.target.files ?? [])); event.target.value = ''
+          }} />
+          <label className="ml-auto flex items-center gap-1.5 text-meta text-muted-foreground"><Checkbox checked={forceFresh} onCheckedChange={checked => setForceFresh(checked === true)} />Force fresh read</label>
+        </div>
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
+          <label className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-2 left-2 size-4 text-muted-foreground" aria-hidden="true" />
+            <Input ref={searchInput} value={search} onChange={event => { setSearch(event.target.value); setSelected(undefined) }} aria-label="Search inbox" placeholder="Search messages…" className="h-8 pl-8 pr-7 text-body" />
+            <ShortcutHint id="search" className="pointer-events-none absolute top-2 right-2" />
           </label>
-        </header>
-        {inbox.isPending && <LoadingState label="Loading the inbox" />}
-        {inbox.isError && <div className="p-4"><ErrorState title="Could not load the inbox" error={inbox.error} retry={() => void inbox.refetch()} /></div>}
-        {process.isError && <div className="p-4"><ErrorState title="Could not start processing" error={process.error} /></div>}
-        {inbox.data?.length === 0 && <EmptyState title="Your inbox is empty">Upload a PDF to start an invoice run.</EmptyState>}
-        {!!inbox.data?.length && <ul className="divide-y">
-          {inbox.data.map(item => <InboxItem key={item.doc_id} item={item} disabled={process.isPending}
-            processing={process.isPending && process.variables === item.doc_id} process={() => process.mutate(item.doc_id)} />)}
+          <RowKeys onStep={step} disabled={!filtered.length} />
+          <Button type="button" variant="ghost" size="sm" disabled={!entry} aria-label="Focus message preview" onClick={() => preview.current?.focus()}><ShortcutHint id="previewMessage" /></Button>
+        </div>
+        {!!uploadErrors.length && <ul className="space-y-1 border-b p-3 text-reject" role="alert">
+          {uploadErrors.map((error, index) => <li key={index}>{error}</li>)}
         </ul>}
+        {process.isError && <ErrorState title="Could not start processing" error={process.error} />}
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? <LoadingState label="Loading the inbox" /> : error ?
+            <ErrorState title="Could not load the inbox" error={error} retry={() => void (folder === 'uploaded' ? runs.refetch() : messages.refetch())} /> :
+            !filtered.length ? <EmptyState title={folder === 'uploaded' ? 'No uploaded invoices' : 'No messages in this folder'} /> :
+              <ul className="divide-y">
+                {filtered.map(item => {
+                  const date = item.doc?.received_at ?? item.run?.created_at
+                  const outcome = item.run && effectiveOutcome(item.run)
+                  const active = item === entry
+                  return <li key={item.key}><button type="button" id={'mail-' + item.key} onClick={() => setSelected(item.key)} aria-pressed={active}
+                    className={cn('grid h-10 w-full min-w-0 grid-cols-[8px_minmax(80px,0.85fr)_minmax(120px,1.4fr)_auto_auto] items-center gap-2 px-3 text-left hover:bg-muted', active && 'bg-accent hover:bg-accent')}>
+                    <StatusSquare outcome={outcome} className={!outcome && item.doc?.processed_run_ids.length ? 'bg-input' : undefined} />
+                    <span className="truncate font-medium" title={item.doc?.sender_name ?? item.run?.vendor_name ?? undefined}>{item.doc?.sender_name ?? item.run?.vendor_name ?? 'Uploaded PDF'}</span>
+                    <span className="truncate text-meta" title={item.doc?.subject ?? item.run?.filename}>{item.doc?.subject ?? item.run?.filename}</span>
+                    <span className="hidden max-w-24 items-center gap-1 overflow-hidden xl:flex">
+                      {item.doc?.tags.slice(0, 2).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
+                    </span>
+                    {date && <time dateTime={date} className="whitespace-nowrap text-meta text-muted-foreground" title={istDate(date) + ' · ' + istTime(date)}>{istTime(date).replace(' IST', '')}</time>}
+                  </button></li>
+                })}
+              </ul>}
+        </div>
       </section>
-      <aside className="space-y-4">
-        <section className="panel p-5">
-          <h2 className="section-title">Upload an invoice</h2>
-          <div onDragOver={event => { event.preventDefault(); setDragging(true) }}
-            onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false) }}
-            onDrop={drop}
-            className={cn('mt-3 grid justify-items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center', dragging && 'border-indigo-500 bg-indigo-50')}>
-            <span className="grid size-11 place-items-center rounded-lg bg-indigo-100 text-indigo-700"><UploadCloud aria-hidden="true" className="size-5" /></span>
-            <p className="mt-1 text-sm font-medium">Drop one or more PDFs here</p>
-            <p className="text-xs text-muted-foreground">Up to 10 MB and 10 pages per file</p>
-            <input ref={input} type="file" accept=".pdf,application/pdf" multiple hidden onChange={event => {
-              void upload(Array.from(event.target.files ?? []))
-              event.target.value = ''
-            }} />
-            <Button type="button" variant="outline" className="mt-2" disabled={uploading} onClick={() => input.current?.click()}>
-              {uploading ? 'Uploading…' : 'Choose PDFs'}
-            </Button>
-          </div>
-          {!!uploadErrors.length && <ul role="alert" className="mt-3 space-y-1 text-sm text-rose-800">
-            {uploadErrors.map((error, index) => <li key={index}>{error}</li>)}
-          </ul>}
-        </section>
-        <section className="panel p-5">
-          <h2 className="section-title">How it works</h2>
-          <ul className="mt-3 grid gap-3 text-sm text-slate-700">
-            {steps.map(([Icon, text]) => <li key={text} className="flex items-center gap-2.5">
-              <Icon aria-hidden="true" className="size-4 shrink-0 text-indigo-700" />{text}
-            </li>)}
-          </ul>
-        </section>
-      </aside>
+      <section ref={preview} tabIndex={-1} aria-label="Message preview" className="min-h-0 min-w-0 overflow-auto bg-card">
+        <h2 className="panel-title">Preview</h2>
+        {!entry ? <EmptyState title="Choose a message" /> :
+          <div className="space-y-4 p-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-meta text-muted-foreground"><FileText className="size-3.5" aria-hidden="true" />
+                {entry.doc ? <span className="identifier">{entry.doc.doc_id}</span> : <span>Uploaded invoice</span>}
+              </div>
+              <h3 className="mt-1 text-title">{entry.doc?.subject ?? entry.run?.filename}</h3>
+            </div>
+            <dl className="border-y text-meta [&>div]:grid [&>div]:min-h-8 [&>div]:grid-cols-[78px_minmax(0,1fr)] [&>div]:items-center [&>div]:gap-2 [&>div]:border-b [&>div]:py-1.5 [&>div:last-child]:border-b-0 [&_dt]:text-muted-foreground">
+              <div><dt>From</dt><dd className="min-w-0 break-words">{entry.doc?.sender_name ?? entry.run?.vendor_name ?? 'Uploaded directly'}
+                {entry.doc?.sender_email && <span className="block text-muted-foreground">{entry.doc.sender_email}</span>}</dd></div>
+              <div><dt>Received</dt><dd>{istDate(entry.doc?.received_at ?? entry.run?.created_at)} · {istTime((entry.doc?.received_at ?? entry.run?.created_at)!)}</dd></div>
+              <div><dt>Attachment</dt><dd className="truncate" title={entry.doc?.filename ?? entry.run?.filename}>{entry.doc?.filename ?? entry.run?.filename}</dd></div>
+              <div><dt>Size</dt><dd>{fileSize(detail.data)}</dd></div>
+            </dl>
+            {!!entry.doc?.tags.length && <div className="flex flex-wrap gap-1.5">{entry.doc.tags.map(tag => <span key={tag} className="rounded-sm border bg-muted px-1.5 py-0.5 text-meta text-muted-foreground">{tag}</span>)}</div>}
+            {entry.doc && <section><h4 className="text-section">What’s tricky here</h4><p className="mt-1 text-body text-muted-foreground">{entry.doc.title}</p></section>}
+            {currentId && <div className="flex items-center justify-between gap-2 border-t py-2">
+              <div className="min-w-0"><div className="text-meta text-muted-foreground">{entry.doc ? 'Last run' : 'Invoice run'}</div>
+                <OutcomeBadge outcome={detail.data ? effectiveOutcome(detail.data) : entry.run && effectiveOutcome(entry.run)} />
+                {entry.run?.total && <span className="ml-2 text-meta">{inr(entry.run.total)}</span>}
+              </div>
+              <Button asChild size="sm" variant="outline"><Link to={'/runs/' + currentId}>{entry.doc ? 'Open last run' : 'Open run'}<ShortcutHint id="open" /></Link></Button>
+            </div>}
+            {entry.doc && <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <Button type="button" disabled={process.isPending || uploading} onClick={() => processEntry(false)}>
+                {process.isPending ? 'Starting…' : currentId ? 'Process again' : 'Process'}<ShortcutHint id="process" />
+              </Button>
+              <Button type="button" variant="outline" disabled={process.isPending || uploading} onClick={() => processEntry(true)}>Process with fresh read<ShortcutHint id="fresh" /></Button>
+            </div>}
+          </div>}
+      </section>
     </div>
   </div>
+}
+
+function fileSize(run?: Schemas['RunDetail']) {
+  const bytes = run?.stages.find(stage => stage.name === 'intake')?.detail.bytes
+  return typeof bytes === 'number' ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : '—'
 }

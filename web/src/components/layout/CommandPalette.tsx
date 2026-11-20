@@ -52,8 +52,8 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
   const invoke = (id: Shortcut) => { close(); if (id === 'sidebar') onSidebar(); else invokeShortcut(id) }
   const current = pathname === '/' ? 'Dashboard' : pathname === '/runs' ? 'Runs' : pathname === '/inbox' ? 'Inbox' : pathname === '/queue' ? 'Queue' : pathname.startsWith('/runs/') ? 'Run view' : ''
   const contextual = shortcutEntries.filter(([id, { group }]) => group === current ||
-    (group === 'Review' && (current === 'Run view' || current === 'Queue')) ||
-    (group === 'Lists' && ['Runs', 'Inbox', 'Queue'].includes(current) && (id !== 'search' || current !== 'Queue')))
+    (group === 'Review' && ['Run view', 'Queue', 'Dashboard'].includes(current)) || (id === 'peek' && current === 'Queue') ||
+    (group === 'Lists' && ['Runs', 'Inbox', 'Queue'].includes(current)))
 
   return <Command label="Search commands" shouldFilter={false} loop>
     <CommandInput value={search} onValueChange={setSearch} placeholder="Search pages, runs and actions…" aria-label="Search commands" />
