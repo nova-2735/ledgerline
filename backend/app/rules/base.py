@@ -27,7 +27,7 @@ from app.orm import CompanyRow, GoodsReceiptRow
 from app.reference.ledger import Ledger, LedgerEntry
 from app.reference.loader import company_from_row
 from app.reference.purchase_orders import find_by_reference, get_po, infer_candidates
-from app.reference.vendors import VendorMatch, resolve_vendor
+from app.reference.vendors import VendorMatch, get_vendor, resolve_vendor
 
 CENT = Decimal("0.01")
 MAX_CANDIDATES = 5
@@ -82,6 +82,7 @@ class RuleContext:
     po: PurchaseOrder | None = None
     po_method: POMethod = "missing"
     po_confirmed: bool = False
+    po_vendor_name: str | None = None  # legal name of the PO's vendor
     po_candidates: list[POCandidate] = field(default_factory=list)
     balances: dict[int, POLineBalance] = field(default_factory=dict)
     grns: list[GoodsReceipt] = field(default_factory=list)
@@ -311,6 +312,13 @@ def _resolve_po(
     return None, ("ambiguous" if reaches else "missing"), shown
 
 
+def _vendor_name(session: Session, po: PurchaseOrder | None) -> str | None:
+    if po is None:
+        return None
+    v = get_vendor(session, po.vendor_id)
+    return v.legal_name if v else po.vendor_id
+
+
 def build_context(
     session: Session,
     extraction: InvoiceExtraction,
@@ -379,6 +387,7 @@ def build_context(
         po=po,
         po_method=method,
         po_confirmed=confirmed,
+        po_vendor_name=_vendor_name(session, po),
         po_candidates=candidates,
         balances=ledger.balance_map(po.po_number) if po else {},
         grns=grns,

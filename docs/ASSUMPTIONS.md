@@ -34,3 +34,9 @@
 - Matching: a bundled invoice line bills the full ordered quantity of each PO line in the bundle; header amount at risk is |Σ (row difference × (1 + PO GST rate))|.
 - Matching: unmatched rows carry `matched_by="fuzzy"` (the contract has no "none" value); model line-mapping suggestions are accepted only for one-to-one and bundle groups.
 - Policy: `policy_version` is written as `<version>+<8 hex>`, e.g. `2026-11-20.1+1a2b3c4d`.
+- Decision: `evaluate()` returns the decision plus the checks with the A01 result appended (pass, fail, or skip when the invoice isn't otherwise approvable); `decide()` returns just the decision. `primary_reason` is the first ordered reason, so an approval with notes names its first warning.
+- Decision: `redecide(ctx, policy)` re-runs every rule on a copy of a stored run's rule context; the caller builds that context (and leaves the run's own billing out of the ledger).
+- Handoff: a REJECT or RETURN also gets a handoff (reopen / not-duplicate / send-to-vendor); codes without a template in RULES §4 fall back by route (vendor → corrected-invoice request, internal → approve-or-reject question).
+- Drafts: a RETURN always drafts a vendor email when the vendor is in the master; unknown vendors never get one (there is no master address); internal notes go to the role (Treasury, Receiving, Procurement, or "Buyer — <PO buyer>").
+- Posting: a small unmatched charge allowed without a PO line is posted to the first matched line's GL account; per-line GST is computed at the PO rate, and any rounding difference against the invoice's tax total lands on the last line.
+- Explanation polish: the model call made by `polish()` is not logged as a run event here; the pipeline does that when it calls `explain`.

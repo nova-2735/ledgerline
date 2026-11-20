@@ -12,6 +12,7 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -19,15 +20,22 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app import db
+from app.config import get_settings
+from app.decide.policy import load_policy
 from app.demo.generate import generate
 from app.demo.invoice import DocSpec, compute, load_specs, load_world
 from app.enums import DocKind, Outcome, RunSource, RunStatus
-from app.extract.extractor import normalise
+from app.extract.extractor import extract, normalise
 from app.extract.normalize import canonical_invoice_number, parse_date
+from app.ingest.reader import read_bytes
+from app.llm.fake import FakeClient
+from app.models.checks import CheckResult
 from app.models.extraction import DocumentRead, ExtractionMeta, InvoiceExtraction, RawInvoice
 from app.orm import DocumentRow, RunRow
 from app.reference.ledger import BilledLine, Ledger, LedgerEntry
 from app.reference.loader import load_reference
+from app.rules.base import ReviewOverrides, RuleContext, build_context
+from app.rules.registry import STAGES, flatten, run_all
 
 
 @dataclass
@@ -161,3 +169,44 @@ def seeded_world(demo_world: Path) -> Iterator[SeededWorld]:
         counts = load_reference(session, demo_world)
         run_ids = seed_history_ledger(session, demo_world)
         yield SeededWorld(demo_world, session, counts, run_ids)
+
+
+@cache
+def expectations() -> dict[str, dict[str, Any]]:
+    """Expected outcome block of every scenario and history document (scenarios.yaml)."""
+    return {s.id: s.meta.get("expected") or {} for s in load_specs(load_world())}
+
+
+def scenario_context(
+    world: SeededWorld, doc_id: str, overrides: ReviewOverrides | None = None
+) -> RuleContext:
+    """Fake-provider extraction of the generated PDF + reference lookups, as the pipeline would."""
+    manifest = json.loads((world.root / "manifest.json").read_text("utf-8"))
+    info = manifest["documents"][doc_id]
+    data = (world.root / info["file"]).read_bytes()
+    doc = read_bytes(data)
+    client = FakeClient(get_settings(), truth_dir=world.root / "truth")
+    extraction = extract(data, doc, client).extraction
+    today = get_settings().app_today
+    assert today is not None
+    sender = (info.get("email") or {}).get("sender_email") if doc_id.startswith("S") else None
+    return build_context(
+        world.session,
+        extraction,
+        policy=load_policy(),
+        today=today,
+        doc_read=doc,
+        sender_email=sender,
+        overrides=overrides,
+        file_sha256=info["sha256"],
+    )
+
+
+def run_checks(
+    world: SeededWorld, doc_id: str, overrides: ReviewOverrides | None = None
+) -> tuple[list[CheckResult], RuleContext]:
+    ctx = scenario_context(world, doc_id, overrides)
+    by_stage = run_all(ctx)
+    assert list(by_stage) == STAGES
+    assert all(by_stage[s] for s in STAGES)
+    return flatten(by_stage), ctx

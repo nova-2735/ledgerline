@@ -6,67 +6,28 @@ by the real extractor; reference data and the approved history come from `helper
 
 from __future__ import annotations
 
-import json
 from decimal import Decimal
-from functools import cache
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from app.config import get_settings
-from app.decide.policy import load_policy
-from app.demo.invoice import load_specs, load_world
 from app.enums import CheckStatus, StageName
-from app.extract.extractor import extract
-from app.ingest.reader import read_bytes
-from app.llm.fake import FakeClient
 from app.models.checks import CheckResult
 from app.rules import matching
-from app.rules.base import Resolution, ReviewOverrides, build_context
-from app.rules.registry import STAGES, all_rules, flatten, run_all
-from tests.helpers.world import SeededWorld
+from app.rules.base import Resolution, ReviewOverrides
+from app.rules.registry import all_rules
+from tests.helpers.world import SeededWorld, expectations, run_checks
 
 pytestmark = pytest.mark.scenarios
 
 DECIDE_ONLY = {"APPROVAL_LIMIT_EXCEEDED"}  # added by the decision step, not by the rules
 INBOX = [f"S{i:02d}" for i in range(1, 16)]
-TODAY_ISO = "2026-11-20"
-
-
-@cache
-def expectations() -> dict[str, dict[str, Any]]:
-    return {s.id: s.meta.get("expected") or {} for s in load_specs(load_world())}
-
-
-def _manifest(root: Path) -> dict[str, Any]:
-    return json.loads((root / "manifest.json").read_text("utf-8"))  # type: ignore[no-any-return]
 
 
 def run_doc(
     world: SeededWorld, doc_id: str, overrides: ReviewOverrides | None = None
 ) -> tuple[list[CheckResult], Any]:
-    info = _manifest(world.root)["documents"][doc_id]
-    data = (world.root / info["file"]).read_bytes()
-    doc = read_bytes(data)
-    client = FakeClient(get_settings(), truth_dir=world.root / "truth")
-    extraction = extract(data, doc, client).extraction
-    ctx = build_context(
-        world.session,
-        extraction,
-        policy=load_policy(),
-        today=get_settings().app_today,  # type: ignore[arg-type]
-        doc_read=doc,
-        sender_email=(info.get("email") or {}).get("sender_email")
-        if doc_id.startswith("S")
-        else None,
-        overrides=overrides,
-        file_sha256=info["sha256"],
-    )
-    by_stage = run_all(ctx)
-    assert list(by_stage) == STAGES
-    assert all(by_stage[s] for s in STAGES)
-    return flatten(by_stage), ctx
+    return run_checks(world, doc_id, overrides)
 
 
 def active_codes(results: list[CheckResult]) -> set[str]:

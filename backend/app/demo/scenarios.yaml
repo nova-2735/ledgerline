@@ -361,7 +361,7 @@ inbox:
       required: [PRICE_VARIANCE_OVER_TOL, AMOUNT_VARIANCE_OVER_TOL]
       allowed: [ROUND_OFF_APPLIED]
       variance: {price_pct: "8.52", delta: "3120.00", delta_incl_tax: "3681.60"}
-      what_if: {unit_price_pct: 10, header_abs: 5000, outcome: APPROVE}
+      what_if: {unit_price_pct: 10, header_pct: 10, header_abs: 5000, outcome: APPROVE}
 
   - id: S13
     title: "Over the auto-approval limit"
