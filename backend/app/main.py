@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
@@ -18,16 +17,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import __version__, clock, db
 from app.api import ROUTERS
 from app.api.deps import APIError
-from app.config import OCRMode, Settings, get_settings
+from app.config import get_settings
+from app.ingest.ocr import ocr_available
 from app.models.api import HealthResponse
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-
-
-def ocr_available(settings: Settings) -> bool:
-    if settings.ocr_enabled is OCRMode.off:
-        return False
-    return shutil.which("tesseract") is not None
 
 
 def _health_router() -> APIRouter:
@@ -43,7 +37,7 @@ def _health_router() -> APIRouter:
             llm_provider=settings.llm_provider.value,
             llm_model=settings.llm_model,
             llm_model_light=settings.llm_model_light,
-            ocr_available=ocr_available(settings),
+            ocr_available=ocr_available(),
             db="ok" if db.ping() else "error",
             today=clock.today(),
         )

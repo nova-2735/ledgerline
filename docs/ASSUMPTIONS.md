@@ -13,3 +13,7 @@
 - Ground truth: H19 is a byte copy of H14, so `truth/index.json` maps their shared sha256 to H14.
 - With no font carrying ₹ (INVOICE_FONT_PATH unset and no DejaVuSans), every "₹" vendor prints "Rs."; generator output is byte-identical across runs on the same machine and font set.
 - Scan rotation follows PIL: positive degrees rotate counter-clockwise.
+- Intake: `store_document` returns a `StoredDocument` (id, sha256, filename, page_count, path, created); CONTRACTS names the return type `Document` without defining it. Filenames are reduced to their base name.
+- Intake: PDFs with only an owner password (no user password) are also rejected as `encrypted`.
+- Reader: a page is `scanned` only when it has < 30 characters of text and images covering > 50% of it; a blank page counts as digital. `read_bytes()` sits beside `read_document(path)` for in-memory reads.
+- OCR: Tesseract is found on PATH or at the default Windows install folders; with `OCR_ENABLED=1` and no Tesseract, reading a scanned page raises `OCRUnavailableError`.
