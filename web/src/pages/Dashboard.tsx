@@ -13,7 +13,7 @@ import { ShortcutHint } from '@/components/ShortcutHint'
 import { RunsTable } from '@/components/RunsTable'
 import { Button } from '@/components/ui/button'
 import { actionLabel, actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
-import { age, dayBefore, dayOutcomes, greatestRisk, outcomeLabels, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
+import { age, dayBefore, dayOutcomes, greatestRisk, outcomeLabels, periodDelta, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
 import { duration, inr, istDate, pct } from '@/lib/format'
 import { reasons, routes } from '@/lib/labels'
 import { businessNow, dayOf, effectiveOutcome } from '@/lib/runList'
@@ -189,11 +189,11 @@ export function Dashboard() {
       {metrics.map(([metric, label, info]) => {
         const raw = metric === 'awaiting_review' ? attention.length : kpis?.[metric]
         const current = raw == null ? null : Number(raw)
-        const baseline = kpis && previous && days < 365 ? subtractPeriods(previous, kpis, metric) : null
-        const difference = baseline != null && current !== null ? current - baseline : null
+        const change = kpis && previous && days < 365 ? periodDelta(previous, kpis, metric, current) : null
+        const difference = typeof change === 'number' ? change : null
         const tone = metric === 'touchless_rate' && difference ? difference > 0 ? 'good' : 'bad' : undefined
         return <div className="col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
-          period={period} delta={difference == null ? undefined : {
+          period={period} delta={change === 'no-prior' ? 'no-prior' : difference == null ? undefined : {
             value: difference,
             text: metric === 'touchless_rate' ? (Math.abs(difference) * 100).toFixed(1) + ' pp' : (metric === 'value_processed' || metric === 'exposure_stopped') ? compactMoney(Math.abs(difference)) : metricText(metric, Math.abs(difference)), tone,
           }} series={spark(metric)} /></div>

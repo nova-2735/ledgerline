@@ -1,12 +1,24 @@
+import type { ReactNode } from 'react'
 import { Info } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 export function KpiTile({ label, info, value, delta, series, period }: {
   label: string; info: string; value: string
-  delta?: { value: number; text: string; tone?: 'good' | 'bad' }
+  delta?: { value: number; text: string; tone?: 'good' | 'bad' } | 'no-prior'
   series: number[]; period: string
 }) {
+  if (delta === 'no-prior') return <Tile label={label} info={info} value={value} series={series}>
+    <div className="mt-0.5 min-h-4 truncate text-meta text-muted-foreground">No prior data</div>
+  </Tile>
+  return <Tile label={label} info={info} value={value} series={series}>
+    <div className={cn('mt-0.5 min-h-4 truncate text-meta text-muted-foreground', delta?.tone === 'good' && 'text-approve', delta?.tone === 'bad' && 'text-reject')}>
+      {delta ? <span title={delta.text + ' vs previous ' + period}>{delta.value > 0 ? '▲ ' : delta.value < 0 ? '▼ ' : ''}{delta.text} vs prev {period}</span> : <span aria-hidden="true">—</span>}
+    </div>
+  </Tile>
+}
+
+function Tile({ label, info, value, series, children }: { label: string; info: string; value: string; series: number[]; children: ReactNode }) {
   return <div className="min-w-0 bg-card px-3 py-2.5">
     <div className="flex items-center justify-between gap-1">
       <h2 className="truncate text-meta font-medium text-muted-foreground" title={label}>{label}</h2>
@@ -16,9 +28,7 @@ export function KpiTile({ label, info, value, delta, series, period }: {
       </Tooltip>
     </div>
     <div className="mt-0.5 text-metric tracking-[-0.01em]" title={value}>{value}</div>
-    <div className={cn('mt-0.5 min-h-4 truncate text-meta text-muted-foreground', delta?.tone === 'good' && 'text-approve', delta?.tone === 'bad' && 'text-reject')}>
-      {delta ? <span title={delta.text + ' vs previous ' + period}>{delta.value > 0 ? '▲ ' : delta.value < 0 ? '▼ ' : ''}{delta.text} vs prev {period}</span> : <span aria-hidden="true">—</span>}
-    </div>
+    {children}
     <Sparkline values={series} />
   </div>
 }

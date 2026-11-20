@@ -18,6 +18,14 @@ export function subtractPeriods(total: Kpis, recent: Kpis, metric: Metric) {
   return Number(total[metric]) - Number(recent[metric])
 }
 
+/** Change against the previous period, or 'no-prior' when that period has no runs or a zero value to compare with. */
+export function periodDelta(total: Kpis, recent: Kpis, metric: Metric, current: number | null): number | 'no-prior' | null {
+  if (total.processed - recent.processed <= 0) return 'no-prior'
+  const baseline = subtractPeriods(total, recent, metric)
+  if (baseline === 0) return 'no-prior'
+  return baseline == null || current == null ? null : current - baseline
+}
+
 export const riskLabels = ['Duplicates', 'Bank change', 'Over-billing', 'Unknown vendor'] as const
 type RiskType = typeof riskLabels[number]
 
