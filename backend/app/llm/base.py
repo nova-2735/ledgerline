@@ -20,6 +20,7 @@ class LLMError(RuntimeError):
     """Base class for provider errors. `retryable` marks transient failures."""
 
     retryable = False
+    status_code: int | None = None
 
 
 class LLMConfigError(LLMError):

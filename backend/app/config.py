@@ -8,11 +8,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = REPO_ROOT / "backend"
+THINKING_LEVELS = ("off", "low", "medium", "high")
 
 
 class AppEnv(StrEnum):
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     openai_compat_base_url: str | None = None
     openai_compat_api_key: SecretStr | None = None
     llm_timeout_s: float = 60
+    llm_thinking: str = "low"
     llm_cache: bool = True
     llm_explain: bool = True
     llm_price_in_per_m: float | None = None
@@ -78,6 +80,22 @@ class Settings(BaseSettings):
     imap_allowed_senders: str | None = None
 
     port: int = 8000
+
+    @field_validator("llm_thinking", mode="before")
+    @classmethod
+    def _check_thinking(cls, value: object) -> str:
+        text = str(value).strip().lower()
+        if text in THINKING_LEVELS:
+            return text
+        try:
+            budget = int(text)
+        except ValueError:
+            budget = -2
+        if budget < 0:
+            raise ValueError(
+                "LLM_THINKING must be off, low, medium, high or a token budget (integer >= 0)"
+            )
+        return str(budget)
 
     @model_validator(mode="after")
     def _apply_env_rules(self) -> Self:

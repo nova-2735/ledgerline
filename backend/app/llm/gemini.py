@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -66,6 +67,43 @@ def line_groups_schema() -> dict[str, Any]:
     return {"type": "array", "items": inline_schema(LineGroup.model_json_schema())}
 
 
+_GEMINI_MAJOR = re.compile(r"gemini-(\d+)")
+# Budgets used for named levels on models that only take a token budget (Gemini 2.x).
+_LEVEL_BUDGETS = {"off": 0, "low": 1024, "medium": 4096, "high": 16384}
+
+
+def thinking_config(model: str, setting: str) -> Any:
+    """Map LLM_THINKING to the SDK's ThinkingConfig for `model`.
+
+    Gemini 3 and later take `thinking_level`; they can't switch thinking off, so "off" becomes
+    MINIMAL. Older models take `thinking_budget` (0 = off). An integer setting is always sent as
+    `thinking_budget`.
+    """
+    from google.genai import types
+
+    m = _GEMINI_MAJOR.search(model)
+    level_model = m is not None and int(m.group(1)) >= 3
+    if setting.isdigit():
+        return types.ThinkingConfig(thinking_budget=int(setting))
+    if level_model:
+        level = {
+            "off": types.ThinkingLevel.MINIMAL,
+            "low": types.ThinkingLevel.LOW,
+            "medium": types.ThinkingLevel.MEDIUM,
+            "high": types.ThinkingLevel.HIGH,
+        }[setting]
+        return types.ThinkingConfig(thinking_level=level)
+    return types.ThinkingConfig(thinking_budget=_LEVEL_BUDGETS[setting])
+
+
+def describe_thinking(config: Any) -> str:
+    if config is None:
+        return "model default"
+    if config.thinking_level is not None:
+        return f"level {str(config.thinking_level.value).lower()}"
+    return f"budget {config.thinking_budget}"
+
+
 def classify_error(exc: Exception) -> LLMError:
     """Map SDK/transport exceptions to our error types (never includes the key)."""
     from google.genai import errors
@@ -75,13 +113,17 @@ def classify_error(exc: Exception) -> LLMError:
     if isinstance(exc, errors.APIError):
         code = int(getattr(exc, "code", 0) or 0)
         msg = f"Gemini API error {code}: {getattr(exc, 'message', '') or exc.__class__.__name__}"
+        err: LLMError
         if code == 429:
-            return LLMRateLimitError(msg)
-        if code in (408, 504):
-            return LLMTimeoutError(msg)
-        if code >= 500:
-            return LLMUnavailableError(msg)
-        return LLMRequestError(msg)
+            err = LLMRateLimitError(msg)
+        elif code in (408, 504):
+            err = LLMTimeoutError(msg)
+        elif code >= 500:
+            err = LLMUnavailableError(msg)
+        else:
+            err = LLMRequestError(msg)
+        err.status_code = code
+        return err
     if isinstance(exc, httpx.TimeoutException | TimeoutError):
         return LLMTimeoutError(f"Gemini call timed out ({exc.__class__.__name__})")
     if isinstance(exc, httpx.TransportError | ConnectionError):
@@ -162,13 +204,27 @@ class GeminiClient(LLMClient):
         from google.genai import types
 
         prompt = load_prompt("extract_invoice")
-        config = types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_json_schema=raw_invoice_schema(),
-        )
+        thinking = thinking_config(self.model, self.settings.llm_thinking)
+
+        def config(with_thinking: Any) -> Any:
+            return types.GenerateContentConfig(
+                temperature=0,
+                response_mime_type="application/json",
+                response_json_schema=raw_invoice_schema(),
+                thinking_config=with_thinking,
+            )
+
         contents = [types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"), prompt.text]
-        response, attempts, latency = self._generate(self.model, contents, config)
+        thinking_note = describe_thinking(thinking)
+        try:
+            response, attempts, latency = self._generate(self.model, contents, config(thinking))
+        except LLMRequestError as exc:
+            # The model may not accept this thinking setting: retry once on its defaults.
+            if exc.status_code != 400:
+                raise
+            response, attempts, latency = self._generate(self.model, contents, config(None))
+            attempts += 1
+            thinking_note = f"model default ({thinking_note} rejected: {exc})"
         try:
             raw = RawInvoice.model_validate_json(self._text(response))
         except ValidationError as exc:
@@ -185,7 +241,7 @@ class GeminiClient(LLMClient):
             input_tokens=tokens_in,
             output_tokens=tokens_out,
             attempts=attempts,
-            extra=extra,
+            extra={**extra, "thinking": thinking_note},
         )
         return raw, meta
 

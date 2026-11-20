@@ -24,7 +24,7 @@ from app.llm.base import (
     polish_is_safe,
     validate_line_groups,
 )
-from app.llm.gemini import GeminiClient, raw_invoice_schema
+from app.llm.gemini import GeminiClient, raw_invoice_schema, thinking_config
 from app.models.extraction import DocumentRead
 
 
@@ -147,10 +147,18 @@ def test_gives_up_after_three_attempts(failure: Exception, error: type[Exception
 
 
 def test_client_errors_are_not_retried() -> None:
-    client, models, sleeps = _client([_api_error(400)])
-    with pytest.raises(LLMRequestError, match="400"):
+    client, models, sleeps = _client([_api_error(403)])
+    with pytest.raises(LLMRequestError, match="403"):
         client.extract_invoice(b"pdf", DOC)
     assert len(models.calls) == 1 and sleeps == []
+
+
+def test_bad_request_gets_one_retry_without_thinking_then_fails() -> None:
+    client, models, sleeps = _client([_api_error(400), _api_error(400)])
+    with pytest.raises(LLMRequestError, match="400"):
+        client.extract_invoice(b"pdf", DOC)
+    assert len(models.calls) == 2 and sleeps == []
+    assert models.calls[1]["config"].thinking_config is None
 
 
 @pytest.mark.parametrize("text", ["not json", '{"invoice_number": "X"}', None])
@@ -187,6 +195,7 @@ def test_map_lines_validated() -> None:
     groups = client.map_lines(inv, po)
     assert groups[0].kind == "bundle" and groups[0].po_lines == [1, 2]
     assert models.calls[0]["model"] == "gemini-test-light"
+    assert models.calls[0]["config"].thinking_config is None
     bad = json.dumps(
         [{"invoice_lines": [0], "po_lines": [7], "kind": "one_to_one", "rationale": "x"}]
     )
@@ -218,3 +227,76 @@ def test_polish_guard() -> None:
 def test_list_models() -> None:
     client, _, _ = _client([])
     assert client.list_models() == ["gemini-test-main"]
+
+
+# --- thinking cap (LLM_THINKING) ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("model", "setting", "level", "budget"),
+    [
+        ("gemini-3.8-flash", "low", types.ThinkingLevel.LOW, None),
+        ("gemini-3.8-flash", "medium", types.ThinkingLevel.MEDIUM, None),
+        ("gemini-3.8-flash", "high", types.ThinkingLevel.HIGH, None),
+        ("gemini-3.8-flash", "off", types.ThinkingLevel.MINIMAL, None),  # 3.x can't switch off
+        ("gemini-3.8-flash", "2048", None, 2048),
+        ("gemini-2.5-flash", "off", None, 0),
+        ("gemini-2.5-flash", "low", None, 1024),
+        ("gemini-2.5-flash", "high", None, 16384),
+        ("gemini-2.5-flash", "0", None, 0),
+    ],
+)
+def test_thinking_config_mapping(
+    model: str, setting: str, level: types.ThinkingLevel | None, budget: int | None
+) -> None:
+    cfg = thinking_config(model, setting)
+    assert cfg.thinking_level == level
+    assert cfg.thinking_budget == budget
+
+
+def _thinking_client(outcomes: list[Any], **kw: Any) -> tuple[GeminiClient, StubModels]:
+    models = StubModels(outcomes)
+    settings = _settings(llm_model="gemini-3.8-flash", **kw)
+    return GeminiClient(settings, sdk=SimpleNamespace(models=models), sleep=lambda _: None), models
+
+
+def test_extract_sends_thinking_level() -> None:
+    client, models = _thinking_client([_response(_s01_raw_json())])
+    _, meta = client.extract_invoice(b"pdf", DOC)
+    cfg = models.calls[0]["config"].thinking_config
+    assert cfg.thinking_level == types.ThinkingLevel.LOW and cfg.thinking_budget is None
+    assert meta.extra["thinking"] == "level low"
+
+
+def test_extract_sends_token_budget() -> None:
+    client, models = _thinking_client([_response(_s01_raw_json())], llm_thinking="512")
+    _, meta = client.extract_invoice(b"pdf", DOC)
+    cfg = models.calls[0]["config"].thinking_config
+    assert cfg.thinking_budget == 512 and cfg.thinking_level is None
+    assert meta.extra["thinking"] == "budget 512"
+
+
+def test_rejected_thinking_falls_back_to_model_default() -> None:
+    client, models = _thinking_client([_api_error(400), _response(_s01_raw_json())])
+    raw, meta = client.extract_invoice(b"pdf", DOC)
+    assert raw.invoice_number == "SPI/26-27/0214"
+    assert models.calls[0]["config"].thinking_config is not None
+    assert models.calls[1]["config"].thinking_config is None
+    assert meta.attempts == 2
+    assert meta.extra["thinking"].startswith("model default (level low rejected")
+
+
+@pytest.mark.parametrize(("value", "stored"), [("HIGH", "high"), (" off ", "off"), ("512", "512")])
+def test_llm_thinking_setting_accepts(value: str, stored: str) -> None:
+    assert _settings(llm_thinking=value).llm_thinking == stored
+
+
+@pytest.mark.parametrize("value", ["-1", "lots", "1.5", ""])
+def test_llm_thinking_setting_rejects(value: str) -> None:
+    with pytest.raises(ValueError, match="LLM_THINKING"):
+        _settings(llm_thinking=value)
+
+
+def test_llm_thinking_default_is_low(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_THINKING", raising=False)
+    assert Settings(_env_file=None).llm_thinking == "low"

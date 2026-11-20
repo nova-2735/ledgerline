@@ -417,6 +417,7 @@ def extract(
         "tokens_out": call.output_tokens,
         "cached": call.cached,
         "attempts": call.attempts,
+        "thinking": call.extra.get("thinking"),
     }
     if call.cached:
         when = call.cached_at.isoformat() if call.cached_at else "earlier"
@@ -431,6 +432,8 @@ def extract(
             f"Read the document with {call.provider} · {call.model} "
             f"({call.prompt_ref}) in {call.latency_ms} ms{tokens}"
         )
+        if call.extra.get("thinking"):
+            call_msg += f" · thinking: {call.extra['thinking']}"
     events = [
         ExtractEvent(call_msg, {"llm_call": call_data}),
         ExtractEvent(
