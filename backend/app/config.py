@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     database_url: str | None = None
 
     llm_provider: LLMProvider = LLMProvider.gemini
-    llm_model: str = "gemini-3.8-flash"
+    llm_model: str = "gemini-3.5-flash-lite"
     llm_model_light: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
     openai_compat_base_url: str | None = None
