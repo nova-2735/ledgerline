@@ -140,7 +140,13 @@ def d02_required(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
                 )
             )
         else:
-            out.append(e.passed(f"{label[0].upper()}{label[1:]} present", f"Found the {label}."))
+            out.append(
+                e.passed(
+                    f"{label[0].upper()}{label[1:]} present",
+                    f"Found the {label}.",
+                    {"field": key},
+                )
+            )
     return out
 
 

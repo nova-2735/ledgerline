@@ -26,7 +26,6 @@ from .base import (
     LLMResponseError,
     LLMTimeoutError,
     LLMUnavailableError,
-    polish_is_safe,
     validate_line_groups,
 )
 from .prompts import load_prompt
@@ -245,7 +244,7 @@ class GeminiClient(LLMClient):
         )
         return raw, meta
 
-    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> list[LineGroup]:
+    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> tuple[list[LineGroup], CallMeta]:
         from google.genai import types
 
         prompt = load_prompt("map_lines")
@@ -277,14 +276,16 @@ class GeminiClient(LLMClient):
             response_json_schema=line_groups_schema(),
         )
         contents = [prompt.text, json.dumps(payload, ensure_ascii=False)]
-        response, _, _ = self._generate(self.model_light, contents, config)
+        response, attempts, latency = self._generate(self.model_light, contents, config)
+        meta = self._light_meta(prompt.id, prompt.version, response, attempts, latency)
         try:
             groups = _LINE_GROUPS.validate_json(self._text(response))
         except ValidationError as exc:
             raise LLMResponseError("line mapping did not match the expected shape") from exc
-        return validate_line_groups(groups, len(inv.line_items), [ln.line_no for ln in po.lines])
+        valid = validate_line_groups(groups, len(inv.line_items), [ln.line_no for ln in po.lines])
+        return valid, meta
 
-    def polish(self, summary: str, facts: dict[str, Any]) -> str:
+    def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
         from google.genai import types
 
         prompt = load_prompt("polish_explanation")
@@ -292,14 +293,27 @@ class GeminiClient(LLMClient):
             prompt.text,
             f"Summary:\n{summary}\n\nFacts:\n{json.dumps(facts, ensure_ascii=False, default=str)}",
         ]
-        try:
-            response, _, _ = self._generate(
-                self.model_light, contents, types.GenerateContentConfig(temperature=0)
-            )
-            rewritten = self._text(response).strip()
-        except LLMError:
-            return summary
-        return rewritten if polish_is_safe(summary, rewritten) else summary
+        response, attempts, latency = self._generate(
+            self.model_light, contents, types.GenerateContentConfig(temperature=0)
+        )
+        meta = self._light_meta(prompt.id, prompt.version, response, attempts, latency)
+        return self._text(response).strip(), meta
+
+    def _light_meta(
+        self, prompt_id: str, version: str, response: Any, attempts: int, latency: int
+    ) -> CallMeta:
+        tokens_in, tokens_out, extra = self._usage(response)
+        return CallMeta(
+            provider=self.provider,
+            model=self.model_light,
+            prompt_id=prompt_id,
+            prompt_version=version,
+            latency_ms=latency,
+            input_tokens=tokens_in,
+            output_tokens=tokens_out,
+            attempts=attempts,
+            extra=extra,
+        )
 
     def list_models(self) -> list[str]:
         """Model names this key can call with generateContent."""

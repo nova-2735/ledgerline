@@ -10,6 +10,7 @@ BASE = 20
 GROUND_POINTS: dict[str, int] = {"exact": 45, "fuzzy": 25, "none": 0, "unavailable": 25}
 VALIDATOR_POINTS = 35
 HUMAN_VERIFIED = 100
+HUMAN_VERIFIED_VALIDATOR = "human_verified"  # added to `validators` of a corrected field
 
 
 def level_for(points: int) -> ConfidenceLevel:

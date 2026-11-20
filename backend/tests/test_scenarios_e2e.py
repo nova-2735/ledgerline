@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,22 @@ pytestmark = pytest.mark.scenarios
 INBOX = [f"S{i:02d}" for i in range(1, 16)]
 
 
+def _check_posting(decision: dict[str, Any]) -> None:
+    """Every APPROVE carries a posting whose lines add up to the invoice total."""
+    if decision["outcome"] != "APPROVE":
+        return
+    posting = decision["posting"]
+    assert posting is not None, decision["headline"]
+    posted = sum(
+        (Decimal(ln["taxable_amount"]) + Decimal(ln["tax_amount"]) for ln in posting["lines"]),
+        Decimal(),
+    )
+    assert posted == Decimal(posting["total"]), posting
+
+
 def _check_outcome(run: dict[str, Any], exp: dict[str, Any]) -> None:
     d = run["decision"]
+    _check_posting(d)
     assert (d["outcome"], d["route"]) == (exp["outcome"], exp["route"]), d["reasons"]
     assert set(exp["required"]) <= set(d["reasons"]), d["reasons"]
     allowed = set(exp["required"]) | set(exp.get("allowed", []))
@@ -46,6 +61,7 @@ def test_scenario_end_to_end(api: TestClient, seeded_db: Path, doc_id: str) -> N
         assert resp.status_code == 200, resp.text
         run = wait_run(api, run_id)
         assert run["decision"]["outcome"] == step["outcome"], run["decision"]["reasons"]
+        _check_posting(run["decision"])
         if "note_contains" in step:
             text = " ".join(run["decision"]["notes"]) + run["decision"]["explanation"]["summary"]
             assert step["note_contains"] in text

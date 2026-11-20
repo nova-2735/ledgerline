@@ -38,6 +38,9 @@ def test_outcome_and_route(seeded_world: SeededWorld, doc_id: str) -> None:
         assert d.handoff is not None and d.handoff.question
     assert d.final is (d.outcome in (Outcome.APPROVE, Outcome.REJECT))
     assert (d.posting is not None) is (d.outcome == Outcome.APPROVE)
+    if d.posting is not None:
+        posted = sum((ln.taxable_amount + ln.tax_amount for ln in d.posting.lines), Decimal())
+        assert posted == d.posting.total, d.posting.lines
 
 
 def test_s01_posting(seeded_world: SeededWorld) -> None:

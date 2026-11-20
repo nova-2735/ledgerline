@@ -7,6 +7,7 @@ Rules never stop the pipeline; only DOC_NOT_INVOICE / DOC_UNREADABLE make stages
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from app import clock
 from app.decide.decision import evaluate, is_active
 from app.decide.policy import Policy
 from app.enums import CheckStatus, ConfidenceLevel, ReasonCode, StageName, StageStatus
+from app.extract.confidence import HUMAN_VERIFIED_VALIDATOR
 from app.extract.extractor import extract, normalise
 from app.ingest.reader import read_bytes
 from app.llm.base import LLMClient
@@ -29,6 +31,7 @@ from app.models.extraction import DocumentRead, FieldValue, InvoiceExtraction, R
 from app.models.run import StageState
 from app.rules import matching
 from app.rules.base import ReviewOverrides, RuleContext, build_context, inr, text_value
+from app.rules.matching import skip_reason
 from app.rules.registry import STAGES as RULE_STAGES
 from app.rules.registry import run_stage as run_rules
 from app.rules.registry import skip_reason_for, skipped_stage, stops_pipeline
@@ -77,6 +80,7 @@ class RunState:
     stages: dict[StageName, StageState] = field(default_factory=dict)
     cached_extraction: bool = False
     persist: Callable[[RunState], None] | None = None
+    llm_calls: list[dict[str, Any]] = field(default_factory=list)  # polish calls of `decide`
 
     def log(self, stage: StageName, message: str, data: dict[str, Any] | None = None) -> None:
         emit(self.run_id, "stage.log", stage, StageStatus.running, message, data)
@@ -261,10 +265,45 @@ def apply_corrections(
             update={
                 "confidence": 1.0,
                 "level": ConfidenceLevel.high,
+                "validators": list(dict.fromkeys([*fv.validators, HUMAN_VERIFIED_VALIDATOR])),
                 "notes": [*fv.notes, "Corrected by reviewer"],
             }
         )
     return fixed.model_copy(update=updates)
+
+
+def as_transcribed(extraction: InvoiceExtraction, doc: DocumentRead) -> InvoiceExtraction:
+    """The extraction as the model read it, before any reviewer correction."""
+    return normalise(extraction.meta.raw, extraction.meta, doc)
+
+
+def _slot(c: CheckResult) -> tuple[str, object]:
+    return c.rule_id, c.evidence.get("field")
+
+
+def keep_corrected_findings(
+    corrected: list[CheckResult], original: list[CheckResult], ctx: RuleContext
+) -> list[CheckResult]:
+    """Findings a field correction fixed stay on record: the original failing check, marked
+    resolved by the reviewer with their note, replaces the pass it now produces (RULES §3: review
+    never deletes a check)."""
+    still = {(c.rule_id, c.code) for c in corrected if c.status == CheckStatus.fail}
+    fixed: dict[tuple[str, object], list[CheckResult]] = {}
+    for c in original:
+        if c.status == CheckStatus.fail and (c.rule_id, c.code) not in still:
+            fixed.setdefault(_slot(c), []).append(ctx.resolve(c, "field_corrections"))
+    out: list[CheckResult] = []
+    for c in corrected:
+        slot = _slot(c)
+        if slot not in fixed:
+            out.append(c)
+            continue
+        if c.status != CheckStatus.pass_:
+            out.append(c)  # a new finding in the same place stays
+        out.extend(fixed.pop(slot, []))
+    for rest in fixed.values():
+        out.extend(rest)
+    return out
 
 
 # --- 4–9: rule stages ----------------------------------------------------------------------------
@@ -379,8 +418,17 @@ def rule_stage(stage: StageName) -> Callable[[RunState], StageResult]:
             return StageResult(checks[0].message, checks, {}, StageStatus.skipped)
         checks = run_rules(stage, ctx)
         if stage == StageName.validate_document:
+            if state.overrides.field_corrections:
+                original = as_transcribed(ctx.extraction, ensure_doc_read(state))
+                before = run_rules(stage, dataclasses.replace(ctx, extraction=original, cache={}))
+                checks = keep_corrected_findings(checks, before, ctx)
             state.stopped = stops_pipeline(checks)
         detail = _stage_detail(stage, state, checks)
+        if stage == StageName.match_lines and skip_reason(ctx) is None:
+            call = matching.analyse(ctx).llm_call
+            if call is not None:
+                state.log(stage, _call_message(call, "Asked the model to suggest line matches"),
+                          {"llm_call": call})  # fmt: skip
         return StageResult(rule_summary(stage, checks, ctx), checks, detail)
 
     return fn
@@ -403,6 +451,7 @@ def decide(state: RunState) -> StageResult:
         polish=state.polish,
     )
     state.decision = result.decision
+    state.llm_calls = list(result.llm_calls)
     own = [c for c in result.checks if c.stage == StageName.decide]
     d = result.decision
     return StageResult(
@@ -417,13 +466,12 @@ def explain_route(state: RunState) -> StageResult:
     if d is None:
         raise RuntimeError("no decision to explain")
     ex = d.explanation
-    if ex.generated_by == "llm":
-        state.log(
-            StageName.explain_route,
-            f"Reworded the summary with {state.client.provider} · "
-            f"{ex.model or state.client.model_light}",
-            {"llm_call": {"provider": state.client.provider, "model": ex.model, "kind": "polish"}},
-        )
+    for call in state.llm_calls:
+        if call.get("accepted"):
+            lead = "Reworded the summary with"
+        else:
+            lead = "Kept the template summary; the model's rewording wasn't used"
+        state.log(StageName.explain_route, _call_message(call, lead), {"llm_call": call})
     if d.handoff is not None:
         summary = f"Sent to {d.route.value.replace('_', ' ')}: {d.handoff.question}"
         if not d.handoff.question:
@@ -441,6 +489,20 @@ def explain_route(state: RunState) -> StageResult:
     if ex.internal_note is not None:
         detail["internal_note"] = ex.internal_note.to
     return StageResult(summary, [], detail, StageStatus.passed)
+
+
+def _call_message(call: dict[str, Any], lead: str) -> str:
+    """One log line for a model call: who, which prompt, how long, how many tokens."""
+    where = f"{call.get('provider')} · {call.get('model')} ({call.get('prompt')})"
+    if call.get("error"):
+        return f"{lead}: {where} failed — {call['error']}"
+    tokens = (
+        f" · {call['tokens_in']} in / {call['tokens_out']} out tokens"
+        if call.get("tokens_in") is not None
+        else ""
+    )
+    why = f" ({call['rejected_because']})" if call.get("rejected_because") else ""
+    return f"{lead}{why}: {where} in {call.get('latency_ms')} ms{tokens}"
 
 
 def _fmt_date(d: date) -> str:

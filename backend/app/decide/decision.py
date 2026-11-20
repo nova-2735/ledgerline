@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from app import clock
 from app.config import get_settings
 from app.enums import CheckStatus, Outcome, ReasonCode, Route, Severity, StageName
 from app.llm.base import LLMClient
 from app.models.checks import CheckResult
-from app.models.decision import Decision
+from app.models.decision import Decision, PostingPayload
 from app.models.extraction import InvoiceExtraction
 from app.rules import matching
 from app.rules.base import Emitter, RuleContext, decimal_value, inr
@@ -21,9 +22,10 @@ from .explain import explain
 from .handoff import Facts, build_handoff
 from .messages import internal_note, vendor_email
 from .policy import Policy
-from .posting import build_posting
+from .posting import posting_for
 
 A01 = Emitter("A01_approval_limit", StageName.decide)
+A02 = Emitter("A02_posting_ready", StageName.decide)
 
 SEVERITY_RANK = {
     Severity.critical: 0,
@@ -76,6 +78,36 @@ def approval_check(
     return A01.passed("Within the auto-approval limit", f"{inr(total)} is within {inr(limit)}.")
 
 
+def posting_check(
+    checks: list[CheckResult], extraction: InvoiceExtraction, ctx: RuleContext
+) -> tuple[CheckResult, PostingPayload | None]:
+    """A02: an otherwise approvable invoice must yield a complete posting payload whose lines
+    add up to the total; if it can't, hold it for AP instead of approving without one."""
+    if outcome_before_limit([c for c in checks if is_active(c)]) is not None:
+        return A02.skip(
+            "Posting ready", "Not applicable: the invoice isn't otherwise approvable."
+        ), None
+    result = posting_for(extraction, ctx.vendor, ctx.po, matching.build_view(ctx))
+    if result.posting is None:
+        gaps = "; ".join(result.gaps)
+        return A02.fail(
+            ReasonCode.POSTING_INCOMPLETE,
+            "Can't build the posting",
+            f"The checks pass, but the invoice can't be posted: {gaps}. Correct the fields "
+            "from the document before approving.",
+            severity=Severity.medium,
+            route=Route.ap_clerk,
+            hint=Outcome.HOLD,
+            evidence={"gaps": result.gaps},
+        ), None
+    p = result.posting
+    n = len(p.lines)
+    return A02.passed(
+        "Posting ready",
+        f"{n} posting line{'s' if n != 1 else ''} adding up to {inr(p.total)}.",
+    ), p
+
+
 # Follow-up a reviewer's resolution leaves behind, shown as a note on the decision.
 FOLLOW_UP = {
     ReasonCode.BANK_DETAILS_CHANGED: (
@@ -114,7 +146,8 @@ def order_key(c: CheckResult) -> tuple[int, int, int, str]:
 @dataclass(frozen=True)
 class DecisionResult:
     decision: Decision
-    checks: list[CheckResult]  # the input checks plus the A01 result
+    checks: list[CheckResult]  # the input checks plus the A02 and A01 results
+    llm_calls: list[dict[str, Any]] = field(default_factory=list)  # polish call, for the log
 
 
 def evaluate(
@@ -129,6 +162,10 @@ def evaluate(
     polish: bool | None = None,
 ) -> DecisionResult:
     checks = [c for c in checks if c.stage != StageName.decide]
+    posting = None
+    if ctx is not None:
+        a02, posting = posting_check(checks, extraction, ctx)
+        checks.append(a02)
     checks = [*checks, approval_check(checks, extraction, policy)]
     active = sorted((c for c in checks if is_active(c)), key=order_key)
     warnings = sorted(
@@ -169,10 +206,10 @@ def evaluate(
         vendor_message = vendor_email(plan, facts, outcome, active)
         note = internal_note(plan, facts)
 
-    posting = None
-    if outcome == Outcome.APPROVE and ctx is not None:
-        posting = build_posting(extraction, ctx.vendor, ctx.po, matching.build_view(ctx))
+    if outcome != Outcome.APPROVE:
+        posting = None
 
+    calls: list[dict[str, Any]] = []
     explanation = explain(
         outcome,
         route,
@@ -183,6 +220,7 @@ def evaluate(
         internal_note=note,
         client=client,
         polish=get_settings().llm_explain if polish is None else polish,
+        calls=calls,
     )
     summary = {s.value: 0 for s in CheckStatus}
     for c in checks:
@@ -203,7 +241,7 @@ def evaluate(
         decided_at=decided_at or clock.now(),
         final=outcome in (Outcome.APPROVE, Outcome.REJECT),
     )
-    return DecisionResult(decision, checks)
+    return DecisionResult(decision, checks, calls)
 
 
 def _handoff_primary(active: list[CheckResult], outcome: Outcome) -> CheckResult:
@@ -228,8 +266,9 @@ def decide(
 def redecide(
     ctx: RuleContext, policy: Policy, version_no: int = 1, **kwargs: object
 ) -> DecisionResult:
-    """Re-run every rule and the decision under another policy, on a copy of a stored run's
-    context (for `/policy/preview`). Nothing is persisted."""
+    """Re-run every rule and the decision under another policy, on a copy of a context. The
+    copy keeps the context's PO and duplicate candidates, so this only answers tolerance and
+    limit what-ifs; `/policy/preview` rebuilds the context under the proposed policy instead."""
     fresh = dataclasses.replace(ctx, policy=policy, cache={})
     checks = flatten(run_all(fresh))
     return evaluate(checks, fresh.extraction, policy, version_no, ctx=fresh, **kwargs)  # type: ignore[arg-type]

@@ -28,6 +28,7 @@ from app.pipeline.review import apply_review
 from app.reference.loader import load_reference
 
 KEEP_TABLES = frozenset({"llm_cache"})  # saved model readings survive a reset
+RESET_WAIT_S = 60.0  # how long a reset waits for in-flight runs and reviews
 
 
 def world_dir(data_dir: Path | None = None) -> Path:
@@ -66,13 +67,22 @@ def _review_request(review: dict[str, Any]) -> ReviewRequest:
     )
 
 
-def seed(data_dir: Path | None = None, *, regenerate: bool = False) -> int:
-    """Rebuild the demo database. Returns the number of runs created."""
+def seed(
+    data_dir: Path | None = None, *, regenerate: bool = False, wait_s: float | None = None
+) -> int:
+    """Rebuild the demo database. Returns the number of runs created.
+
+    New uploads and reviews are refused while this runs; in-flight work gets `wait_s` seconds to
+    finish (default `RESET_WAIT_S`), else `runner.ResetTimeout` is raised and nothing is touched."""
     world = world_dir(data_dir)
-    if regenerate or not (world / "manifest.json").is_file():
-        generate(world)
+    with runner.exclusive(RESET_WAIT_S if wait_s is None else wait_s):
+        if regenerate or not (world / "manifest.json").is_file():
+            generate(world)
+        return _reseed(world)
+
+
+def _reseed(world: Path) -> int:
     manifest = load_manifest(world)
-    runner.wait_idle()
     reset_database()
     with db.get_sessionmaker()() as session:
         load_reference(session, world)
@@ -121,7 +131,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--regenerate", action="store_true", help="regenerate the demo world")
     args = parser.parse_args(argv)
     db.init_db()
-    count = seed(regenerate=args.regenerate)
+    try:
+        count = seed(regenerate=args.regenerate)
+    except (runner.ResetInProgress, runner.ResetTimeout) as exc:
+        print(f"Not seeded: {exc}")
+        return 1
     print(f"Seeded {count} runs into {get_settings().resolved_database_url}")
     return 0
 

@@ -94,7 +94,26 @@ def t03_tax_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
         "expected": "CGST+SGST" if intra else "IGST",
         "charged": {"cgst": str(tax.cgst), "sgst": str(tax.sgst), "igst": str(tax.igst)},
     }
-    ok = (tax.igst == 0) if intra else (tax.cgst == 0 and tax.sgst == 0)
+    if intra:
+        ok = tax.igst == 0 and tax.cgst != 0 and tax.sgst != 0
+    else:
+        ok = tax.cgst == 0 and tax.sgst == 0
+    if intra and tax.igst == 0 and not ok:
+        missing, present = ("SGST", "CGST") if tax.sgst == 0 else ("CGST", "SGST")
+        return [
+            e.fail(
+                ReasonCode.TAX_TYPE_MISMATCH,
+                "Wrong type of GST",
+                f"Only {present} was charged. Supplier and buyer are both in state {buyer_state}, "
+                f"so the invoice must show both CGST and SGST; without {missing} the tax "
+                "can't be claimed in full as input tax credit. Ask the vendor for a corrected "
+                "invoice.",
+                severity=Severity.high,
+                route=Route.vendor,
+                hint=Outcome.RETURN,
+                evidence=evidence | {"missing": missing},
+            )
+        ]
     if ok:
         kind = "CGST + SGST" if intra else "IGST"
         where = "within the same state" if intra else "between states"
@@ -147,6 +166,9 @@ def t04_tax_amount(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     charged = [k for k, v in stated.items() if v != 0]
     if not charged:
         return [e.skip("GST amounts", "No GST charged on this invoice.")]
+    # CGST and SGST come as a pair: when either is charged, check both (a missing half is 0).
+    if "CGST" in charged or "SGST" in charged:
+        charged = [k for k in stated if k in ("CGST", "SGST") or k in charged]
     tolerance = ctx.policy.tolerances.rounding_abs
     out = []
     for kind in charged:

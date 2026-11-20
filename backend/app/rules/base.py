@@ -290,13 +290,14 @@ def _resolve_po(
     vendor_id: str | None,
     policy: Policy,
     ledger: Ledger,
+    run_id: int | None = None,
 ) -> tuple[PurchaseOrder | None, POMethod, list[POCandidate]]:
     printed = extraction.po_reference_canonical
     if printed:
         hit = find_by_reference(session, printed, vendor_id)
         if hit is not None:
             return hit.po, "explicit", []
-    candidates = infer_candidates(session, extraction, vendor_id, ledger)
+    candidates = infer_candidates(session, extraction, vendor_id, ledger, exclude_run_id=run_id)
     top = candidates[0] if candidates else None
     second = candidates[1] if len(candidates) > 1 else None
     reaches = top is not None and top.score >= policy.po_inference.min_score
@@ -342,7 +343,7 @@ def build_context(
     vendor_id = vendor_match.vendor.vendor_id if vendor_match.vendor else None
     ledger = Ledger(session)
 
-    po, method, candidates = _resolve_po(session, extraction, vendor_id, policy, ledger)
+    po, method, candidates = _resolve_po(session, extraction, vendor_id, policy, ledger, run_id)
     confirmed = False
     if overrides.po_number:
         chosen = get_po(session, overrides.po_number)
@@ -376,7 +377,13 @@ def build_context(
         if vendor_id
         else []
     )
-    file_rows = ledger.rows_for_file(file_sha256, exclude_run_id=run_id) if file_sha256 else []
+    file_rows = (
+        ledger.rows_for_file(
+            file_sha256, policy.duplicates.window_days, around=around, exclude_run_id=run_id
+        )
+        if file_sha256
+        else []
+    )
 
     return RuleContext(
         extraction=extraction,

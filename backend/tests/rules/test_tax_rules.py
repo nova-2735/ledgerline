@@ -104,3 +104,22 @@ def test_t04_one_result_per_tax_type() -> None:
         ]
     )
     assert codes(t.t04_tax_amount(make_ctx(make_extraction(**off)))) == ["TAX_AMOUNT_MISMATCH"]
+
+
+@pytest.mark.parametrize("only", ["CGST", "SGST"])
+def test_intra_state_needs_both_cgst_and_sgst(only: str) -> None:
+    """Regression: a CGST-only (or SGST-only) intra-state invoice passed T03 and T04."""
+    half = _intra(
+        tax_lines=[{"tax_type": only, "rate": "9%", "amount": "3,690.00"}],
+        total="44,690.00",
+    )
+    ctx = make_ctx(make_extraction(**half), vendor="V008", po="KF-PO-0148")
+    [t03] = t.t03_tax_type(ctx)
+    missing = "SGST" if only == "CGST" else "CGST"
+    assert t03.code == "TAX_TYPE_MISMATCH" and t03.evidence["missing"] == missing
+    assert f"Only {only} was charged" in t03.message
+    t04 = t.t04_tax_amount(ctx)
+    assert [r.evidence["tax_type"] for r in t04] == ["CGST", "SGST"]
+    assert codes(t04) == ["TAX_AMOUNT_MISMATCH"]
+    [bad] = [r for r in t04 if r.status.value == "fail"]
+    assert bad.evidence["tax_type"] == missing and bad.evidence["actual"] == "0.00"

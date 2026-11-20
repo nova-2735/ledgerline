@@ -45,8 +45,8 @@ def emit(
     """
     for attempt in range(MAX_ATTEMPTS):
         with get_sessionmaker()() as session:
-            row = _insert(session, run_id, type, stage, status, message, data)
             try:
+                row = _insert(session, run_id, type, stage, status, message, data)
                 session.commit()
             except IntegrityError:
                 session.rollback()

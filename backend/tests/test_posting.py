@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from app.decide.posting import build_posting
+from app.decide.posting import build_posting, posting_for
+from app.models.decision import PostingPayload
 from app.rules import matching
-from tests.rules.builders import line, make_ctx, make_extraction
+from tests.rules.builders import S01_LINES, line, make_ctx, make_extraction
 
 
 def test_s01_posting() -> None:
@@ -58,3 +59,52 @@ def test_no_posting_without_vendor_or_po() -> None:
     assert build_posting(ctx.extraction, None, ctx.po, matching.build_view(ctx)) is None
     ctx = make_ctx(po=None)
     assert build_posting(ctx.extraction, ctx.vendor, None, matching.build_view(ctx)) is None
+
+
+def _posted(p: PostingPayload) -> Decimal:
+    return sum((ln.taxable_amount + ln.tax_amount for ln in p.lines), Decimal())
+
+
+def test_other_charges_are_posted_so_lines_add_up() -> None:
+    """Regression: a separate ₹250 freight charge was left out, so the lines summed to
+    ₹1,16,348.00 against a ₹1,16,598.00 total."""
+    ex = make_extraction(
+        other_charges=[{"label": "Freight", "amount": "250.00"}],
+        total="1,16,598.00",
+        amount_in_words=None,
+    )
+    ctx = make_ctx(ex)
+    p = build_posting(ex, ctx.vendor, ctx.po, matching.build_view(ctx))
+    assert p is not None and p.total == Decimal("116598.00")
+    assert _posted(p) == p.total
+    freight = p.lines[-1]
+    assert freight.description == "Other charges: Freight"
+    assert (freight.taxable_amount, freight.tax_amount) == (Decimal("250.00"), Decimal("0.00"))
+    assert freight.gl_account == p.lines[0].gl_account
+
+
+def test_round_off_gets_its_own_line() -> None:
+    ex = make_extraction(round_off="0.40", total="1,16,348.40", amount_in_words=None)
+    ctx = make_ctx(ex)
+    p = build_posting(ex, ctx.vendor, ctx.po, matching.build_view(ctx))
+    assert p is not None and _posted(p) == Decimal("116348.40")
+    assert (p.lines[-1].description, p.lines[-1].taxable_amount) == ("Round-off", Decimal("0.40"))
+
+
+def test_unread_line_amount_gives_no_posting_and_says_why() -> None:
+    lines = [dict(S01_LINES[0]), dict(S01_LINES[1], amount=None)]
+    ex = make_extraction(line_items=lines)
+    ctx = make_ctx(ex)
+    result = posting_for(ex, ctx.vendor, ctx.po, matching.build_view(ctx))
+    assert result.posting is None
+    assert result.gaps == ["the amount of invoice line 2 couldn't be read"]
+
+
+def test_lines_that_dont_reach_the_total_give_no_posting() -> None:
+    ex = make_extraction(total="1,20,000.00", amount_in_words=None)
+    ctx = make_ctx(ex)
+    result = posting_for(ex, ctx.vendor, ctx.po, matching.build_view(ctx))
+    assert result.posting is None
+    assert result.gaps == [
+        "the posting lines come to ₹1,16,348.00 but the invoice total is ₹1,20,000.00"
+    ]

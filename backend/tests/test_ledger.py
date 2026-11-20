@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -102,5 +102,17 @@ def test_rows_for_file(seeded_world: SeededWorld) -> None:
     ledger = Ledger(seeded_world.session)
     h14 = seeded_world.run_ids["H14"]
     row = next(r for r in ledger.ledger_rows_for_vendor("V001", 365) if r.run_id == h14)
-    assert [r.run_id for r in ledger.rows_for_file(row.file_sha256)] == [h14]
-    assert ledger.rows_for_file(row.file_sha256, exclude_run_id=h14) == []
+    assert [r.run_id for r in ledger.rows_for_file(row.file_sha256, 365)] == [h14]
+    assert ledger.rows_for_file(row.file_sha256, 365, exclude_run_id=h14) == []
+
+
+def test_rows_for_file_respects_the_window(seeded_world: SeededWorld) -> None:
+    """Regression: X01 matched a same-file ledger entry of any age, ignoring `window_days`."""
+    ledger = Ledger(seeded_world.session)
+    h14 = seeded_world.run_ids["H14"]
+    row = next(r for r in ledger.ledger_rows_for_vendor("V001", 365) if r.run_id == h14)
+    assert row.invoice_date is not None
+    near = row.invoice_date + timedelta(days=10)
+    far = row.invoice_date + timedelta(days=400)
+    assert [r.run_id for r in ledger.rows_for_file(row.file_sha256, 365, around=near)] == [h14]
+    assert ledger.rows_for_file(row.file_sha256, 365, around=far) == []

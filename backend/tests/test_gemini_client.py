@@ -16,6 +16,7 @@ from app.demo.templates import get_template
 from app.llm.base import (
     LineGroup,
     LLMConfigError,
+    LLMError,
     LLMRateLimitError,
     LLMRequestError,
     LLMResponseError,
@@ -192,8 +193,10 @@ def test_map_lines_validated() -> None:
         ]
     )
     client, models, _ = _client([_response(good)])
-    groups = client.map_lines(inv, po)
+    groups, meta = client.map_lines(inv, po)
     assert groups[0].kind == "bundle" and groups[0].po_lines == [1, 2]
+    assert meta.prompt_ref.startswith("map_lines@") and meta.model == "gemini-test-light"
+    assert meta.cached is False and meta.latency_ms >= 0
     assert models.calls[0]["model"] == "gemini-test-light"
     assert models.calls[0]["config"].thinking_config is None
     bad = json.dumps(
@@ -210,6 +213,13 @@ def test_validate_line_groups_rejects_duplicates() -> None:
         validate_line_groups([g, g], 1, [1])
 
 
+def test_validate_line_groups_rejects_repeated_po_line_in_bundle() -> None:
+    """Regression: a bundle [1, 1] was accepted and billed PO line 1 twice."""
+    g = LineGroup(invoice_lines=[0], po_lines=[1, 1], kind="bundle", rationale="")
+    with pytest.raises(LLMResponseError, match="repeats a PO line"):
+        validate_line_groups([g], 1, [1, 2])
+
+
 def test_polish_guard() -> None:
     summary = "HOLD: invoice AIS/26-27/1188 bills 50 boxes but only 40 remain on KF-PO-0119."
     good = "HOLD. Invoice AIS/26-27/1188 asks for 50 boxes, yet only 40 remain open on KF-PO-0119."
@@ -217,11 +227,11 @@ def test_polish_guard() -> None:
     assert polish_is_safe(summary, good)
     assert not polish_is_safe(summary, dropped)
     client, _, _ = _client([_response(good)])
-    assert client.polish(summary, {}) == good
-    client, _, _ = _client([_response(dropped)])
-    assert client.polish(summary, {}) == summary
+    text, meta = client.polish(summary, {})
+    assert text == good and meta.prompt_ref.startswith("polish_explanation@")
     client, _, _ = _client([_api_error(400)])
-    assert client.polish(summary, {}) == summary
+    with pytest.raises(LLMError):
+        client.polish(summary, {})
 
 
 def test_list_models() -> None:

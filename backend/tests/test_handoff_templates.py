@@ -84,6 +84,10 @@ CASES: dict[ReasonCode, tuple[dict[str, Any], list[str]]] = {
         ["total, invoice date"],
     ),
     C.APPROVAL_LIMIT_EXCEEDED: ({}, ["₹1,16,348.00", "₹5,00,000.00"]),
+    C.POSTING_INCOMPLETE: (
+        {"gaps": ["the amount of invoice line 2 couldn't be read"]},
+        ["the amount of invoice line 2 couldn't be read"],
+    ),
     C.DOC_PROFORMA: ({}, ["tax invoice"]),
 }  # fmt: skip
 

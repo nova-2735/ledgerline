@@ -52,3 +52,8 @@
 - Decision: a check resolved by review can leave a follow-up note on the decision (bank change → update the vendor master via change control before the payment run).
 - Eval: runs use explanation polish off, so the live eval measures the model's reading and the deterministic decision only. Truth for subtotal, buyer GSTIN and PO reference is what is printed (normalised); every other field uses the generator's numbers. A 429 that survives the client's own retries makes the harness wait 30 / 60 / 120 s and re-run the scenario; reaching `MAX_LIVE_LLM_CALLS_PER_HOUR` stops the run and marks the rest as not run.
 - Eval report: kept to the verdict, the decision table (with the first difference per scenario) and field accuracy; latency, tokens and retries are in the `.json` next to it.
+- The ledger lock that serialises rule stages → decide → billing is in-process: the API runs as one process with `WORKERS` threads. Several API processes would need a database-level lock instead.
+- A posting's separately printed other charges become one untaxed line on the first PO line's GL account (their GST is already in the stated tax); the round-off, plus any rounding residual up to ₹1, gets its own line. A larger residual means no posting (A02 holds the invoice).
+- Because a final APPROVE must carry a posting, a reviewer can't approve an invoice from a vendor that isn't in the vendor master (409 `posting_incomplete`); the vendor has to be onboarded and the invoice re-run first.
+- X01 (same file) uses the same duplicate window as X02/X03: earlier runs whose invoice date is within `window_days` of this invoice's date; runs without a date are kept.
+- A demo reset waits up to 60 s for in-flight runs and reviews before giving up with 409 `reset_timeout`.

@@ -3,15 +3,22 @@
 Each execution owns one database session and commits after every stage, so the run view and
 `GET /runs/{id}` are current while the run is in flight. Events are written in their own short
 transactions (`events.emit`).
+
+Two guards keep concurrent work consistent (one API process, `WORKERS` threads):
+- `ledger_lock` serialises everything that reads or writes the invoice ledger: the rule stages
+  (PO balances, duplicate history), the decision and the billing write. Two runs of the same
+  invoice can't both see an empty history and both approve.
+- the work gate lets a demo reset wait for in-flight runs and reviews and refuse new ones
+  (`ResetInProgress`) while it drops and reseeds the tables.
 """
 
 from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from concurrent.futures import wait as wait_futures
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -83,11 +90,82 @@ class SubmitMeta:
     subject: str | None = None
 
 
-# --- worker pool ---------------------------------------------------------------------------------
+# --- worker pool and work gate -------------------------------------------------------------------
+
+
+class ResetInProgress(RuntimeError):
+    """New work is refused while the demo world is being reset."""
+
+
+class ResetTimeout(RuntimeError):
+    """A reset gave up waiting for in-flight work to finish."""
+
 
 _lock = threading.Lock()
 _pool: ThreadPoolExecutor | None = None
-_futures: set[Future[None]] = set()
+
+# The work gate: `_active` counts submissions, reviews and scheduled jobs (queued or running).
+_gate = threading.Condition()
+_active = 0
+_reset_owner: int | None = None  # thread running a reset, if any
+_local = threading.local()
+
+# Rule stages → decide → billing write, one run at a time (see the module docstring).
+ledger_lock = threading.RLock()
+
+
+def _acquire() -> None:
+    global _active
+    with _gate:
+        nested = getattr(_local, "depth", 0) > 0
+        if _reset_owner is not None and _reset_owner != threading.get_ident() and not nested:
+            raise ResetInProgress("The demo is being reset. Try again in a moment.")
+        _active += 1
+
+
+def _release() -> None:
+    global _active
+    with _gate:
+        _active -= 1
+        _gate.notify_all()
+
+
+@contextmanager
+def work() -> Iterator[None]:
+    """Hold a work slot for a submission or review. Raises `ResetInProgress` while a reset runs
+    (except on the reset's own thread, or nested inside another slot)."""
+    _acquire()
+    _local.depth = getattr(_local, "depth", 0) + 1
+    try:
+        yield
+    finally:
+        _local.depth -= 1
+        _release()
+
+
+@contextmanager
+def exclusive(timeout: float) -> Iterator[None]:
+    """Run a reset: refuse new work, wait up to `timeout` s for in-flight work, then yield.
+    Raises `ResetInProgress` when another reset is running and `ResetTimeout` when work doesn't
+    finish in time; new work is accepted again in both cases."""
+    global _reset_owner
+    with _gate:
+        if _reset_owner is not None:
+            raise ResetInProgress("A reset is already running.")
+        _reset_owner = threading.get_ident()
+        if not _gate.wait_for(lambda: _active == 0, timeout):
+            _reset_owner = None
+            _gate.notify_all()
+            raise ResetTimeout(
+                "Some invoices are still being processed, so the demo wasn't reset. "
+                "Try again in a minute."
+            )
+    try:
+        yield
+    finally:
+        with _gate:
+            _reset_owner = None
+            _gate.notify_all()
 
 
 def _executor() -> ThreadPoolExecutor:
@@ -101,23 +179,24 @@ def _executor() -> ThreadPoolExecutor:
 
 
 def schedule(fn: Callable[..., None], *args: Any, **kwargs: Any) -> None:
-    future = _executor().submit(fn, *args, **kwargs)
-    with _lock:
-        _futures.add(future)
-    future.add_done_callback(_discard)
+    """Run `fn` on the worker pool; it holds a work slot from now until it finishes."""
+    _acquire()
+    try:
+        future = _executor().submit(fn, *args, **kwargs)
+    except BaseException:
+        _release()
+        raise
+    future.add_done_callback(_done)
 
 
-def _discard(future: Future[None]) -> None:
-    with _lock:
-        _futures.discard(future)
+def _done(_: Future[None]) -> None:
+    _release()
 
 
 def wait_idle(timeout: float = 120) -> bool:
-    """Wait until no run is executing. True when idle."""
-    with _lock:
-        pending_futures = list(_futures)
-    done, not_done = wait_futures(pending_futures, timeout=timeout)
-    return not not_done
+    """Wait until no submission, review or scheduled run is in flight. True when idle."""
+    with _gate:
+        return _gate.wait_for(lambda: _active == 0, timeout)
 
 
 def shutdown() -> None:
@@ -144,7 +223,21 @@ def submit(
 ) -> int:
     """Store the document, create a queued run and start it. Raises `IntakeError` when the file
     can't be accepted (too large, not a PDF, encrypted, too many pages)."""
-    meta = meta or SubmitMeta()
+    with work():
+        return _submit(
+            data, filename, meta or SubmitMeta(), force_fresh, background, client, polish
+        )
+
+
+def _submit(
+    data: bytes,
+    filename: str,
+    meta: SubmitMeta,
+    force_fresh: bool,
+    background: bool,
+    client: LLMClient | None,
+    polish: bool | None,
+) -> int:
     stored = store_document(data, filename)
     with get_sessionmaker()() as session:
         run = RunRow(
@@ -256,12 +349,13 @@ def resume(
             if stage_index(name) >= stage_index(from_stage):
                 state.stages[name] = pending(name)
         # A reopened run stops counting as billed while it is re-checked.
-        if session.get(InvoiceLedgerRow, run_id) is not None:
-            Ledger(session).set_outcome(run_id, None)
-        run.final_outcome = None
-        run.status = RunStatus.running.value
-        run.stages = _dump_stages(state)
-        session.commit()
+        with ledger_lock:
+            if session.get(InvoiceLedgerRow, run_id) is not None:
+                Ledger(session).set_outcome(run_id, None)
+            run.final_outcome = None
+            run.status = RunStatus.running.value
+            run.stages = _dump_stages(state)
+            session.commit()
         emit(
             run_id,
             "run.resumed",
@@ -280,31 +374,36 @@ def _get(session: Session, run_id: int) -> RunRow:
 
 def _run_from(state: RunState, start: StageName) -> None:
     current = start
-    try:
-        for name in STAGE_ORDER:
-            current = name
-            if stage_index(name) < stage_index(start):
-                if name in RULE_STAGES and state.extraction is not None:
-                    run_stage(state, name, STAGE_FUNCS[name], silent=True)
-                continue
-            run_stage(state, name, STAGE_FUNCS[name])
-            if name == StageName.decide and state.decision is not None:
-                d = state.decision
-                emit(
-                    state.run_id,
-                    "decision.made",
-                    message=d.headline,
-                    data={
-                        "decision": d.model_dump(mode="json"),
-                        "outcome": d.outcome.value,
-                        "route": d.route.value,
-                    },
-                )
-        _finalize(state)
-    except Exception as exc:
-        log.exception("run %s failed in %s", state.run_id, current.value)
-        state.session.rollback()
-        _fail(state, current, exc)
+    # From the first rule stage until the outcome is committed, hold the ledger lock: the rules
+    # read PO balances and duplicate history, and the outcome writes billing.
+    with ExitStack() as held:
+        try:
+            for name in STAGE_ORDER:
+                current = name
+                if name == RULE_STAGES[0]:
+                    held.enter_context(ledger_lock)
+                if stage_index(name) < stage_index(start):
+                    if name in RULE_STAGES and state.extraction is not None:
+                        run_stage(state, name, STAGE_FUNCS[name], silent=True)
+                    continue
+                run_stage(state, name, STAGE_FUNCS[name])
+                if name == StageName.decide and state.decision is not None:
+                    d = state.decision
+                    emit(
+                        state.run_id,
+                        "decision.made",
+                        message=d.headline,
+                        data={
+                            "decision": d.model_dump(mode="json"),
+                            "outcome": d.outcome.value,
+                            "route": d.route.value,
+                        },
+                    )
+            _finalize(state)
+        except Exception as exc:
+            log.exception("run %s failed in %s", state.run_id, current.value)
+            state.session.rollback()
+            _fail(state, current, exc)
 
 
 # --- persistence ---------------------------------------------------------------------------------

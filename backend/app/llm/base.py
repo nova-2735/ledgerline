@@ -73,6 +73,28 @@ class CallMeta:
     def prompt_ref(self) -> str:
         return f"{self.prompt_id}@{self.prompt_version}"
 
+    def event_data(self, kind: str) -> dict[str, Any]:
+        """The `llm_call` payload of a run event (same keys as the extraction call)."""
+        return {
+            "kind": kind,
+            "provider": self.provider,
+            "model": self.model,
+            "prompt": self.prompt_ref,
+            "latency_ms": self.latency_ms,
+            "tokens_in": self.input_tokens,
+            "tokens_out": self.output_tokens,
+            "cached": self.cached,
+            "attempts": self.attempts,
+        }
+
+    def describe(self) -> str:
+        tokens = (
+            f" · {self.input_tokens} in / {self.output_tokens} out tokens"
+            if self.input_tokens is not None
+            else ""
+        )
+        return f"{self.provider} · {self.model} ({self.prompt_ref}) in {self.latency_ms} ms{tokens}"
+
 
 class LineGroup(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -86,7 +108,8 @@ class LineGroup(BaseModel):
 def validate_line_groups(
     groups: Sequence[LineGroup], invoice_count: int, po_line_numbers: Sequence[int]
 ) -> list[LineGroup]:
-    """Reject suggestions that invent indexes or list an invoice line twice."""
+    """Reject suggestions that invent indexes, list an invoice line twice, or repeat a PO line
+    within a group (a bundle of [1, 1] would bill line 1 twice)."""
     seen: set[int] = set()
     valid_po = set(po_line_numbers)
     for g in groups:
@@ -97,6 +120,8 @@ def validate_line_groups(
         for n in g.po_lines:
             if n not in valid_po:
                 raise LLMResponseError(f"line mapping uses unknown PO line {n}")
+        if len(set(g.po_lines)) != len(g.po_lines):
+            raise LLMResponseError(f"line mapping repeats a PO line in {g.po_lines}")
         if g.kind == "unmatched" and g.po_lines:
             raise LLMResponseError("an unmatched group can't name PO lines")
     return list(groups)
@@ -127,12 +152,12 @@ class LLMClient(ABC):
         """Transcribe a PDF into a RawInvoice (strings exactly as printed)."""
 
     @abstractmethod
-    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> list[LineGroup]:
+    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> tuple[list[LineGroup], CallMeta]:
         """Suggest invoice-line ↔ PO-line groups (validated; may be empty)."""
 
     @abstractmethod
-    def polish(self, summary: str, facts: dict[str, Any]) -> str:
-        """Rewrite a template summary; returns the original when the rewrite isn't safe."""
+    def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
+        """Rewrite a template summary. The caller decides whether the rewrite is safe to use."""
 
 
 def get_client(settings: Settings) -> LLMClient:

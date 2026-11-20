@@ -6,7 +6,7 @@ from typing import Any
 from app.decide.explain import explain, polish_accepted
 from app.decide.handoff import Facts
 from app.enums import CheckStatus, Outcome, ReasonCode, Route, Severity, StageName
-from app.llm.base import LLMClient, LLMUnavailableError
+from app.llm.base import CallMeta, LLMClient, LLMUnavailableError
 from app.models.checks import CheckResult
 from tests.rules.builders import make_ctx
 
@@ -48,12 +48,17 @@ class StubClient(LLMClient):
         raise NotImplementedError
 
     def map_lines(self, inv: Any, po: Any) -> Any:
-        return []
+        return [], _meta("map_lines")
 
-    def polish(self, summary: str, facts: dict[str, Any]) -> str:
+    def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
         if isinstance(self.reply, Exception):
             raise self.reply
-        return self.reply.replace("{summary}", summary)
+        return self.reply.replace("{summary}", summary), _meta("polish_explanation")
+
+
+def _meta(prompt_id: str) -> CallMeta:
+    return CallMeta(provider="stub", model="stub-light", prompt_id=prompt_id, prompt_version="v1",
+                    latency_ms=420, input_tokens=310, output_tokens=55)  # fmt: skip
 
 
 def _primary() -> CheckResult:
@@ -72,12 +77,44 @@ def _primary() -> CheckResult:
     )
 
 
-def _explain(client: LLMClient | None, polish: bool = True):  # type: ignore[no-untyped-def]
+def _explain(client: LLMClient | None, polish: bool = True, calls: list[Any] | None = None):  # type: ignore[no-untyped-def]
     ctx = make_ctx()
     facts = Facts.build(ctx.extraction, ctx, Decimal("500000.00"))
     primary = _primary()
     return explain(Outcome.HOLD, Route.buyer, primary, [primary], facts, vendor_message=None,
-                   internal_note=None, client=client, polish=polish)  # fmt: skip
+                   internal_note=None, client=client, polish=polish, calls=calls)  # fmt: skip
+
+
+def test_guard_rejects_a_reversed_outcome() -> None:
+    """Regression: "Do not hold invoice 42. Approve payment." passed as a HOLD summary."""
+    original = "Hold for the buyer: invoice 42 needs a look."
+    assert not polish_accepted(original, "Do not hold invoice 42. Approve payment.", Outcome.HOLD)
+    assert not polish_accepted(original, "Hold off? No — reject invoice 42.", Outcome.HOLD)
+    assert not polish_accepted(original, "We won't hold invoice 42 any longer.", Outcome.HOLD)
+    assert polish_accepted(original, "On hold for the buyer: invoice 42 needs a look.",
+                           Outcome.HOLD)  # fmt: skip
+
+
+def test_guard_allows_outcome_verbs_already_in_the_template() -> None:
+    # the template itself says "Pay 30 boxes now"; keeping that isn't a change of outcome
+    kept = "On hold for the buyer — " + TEMPLATE
+    assert polish_accepted(TEMPLATE, kept, Outcome.HOLD)
+
+
+def test_polish_calls_are_recorded_accepted_or_not() -> None:
+    """Regression: only accepted rewrites were logged, without prompt, latency or tokens."""
+    calls: list[dict[str, Any]] = []
+    _explain(StubClient("On hold — {summary}"), calls=calls)
+    _explain(StubClient("Approve — {summary}"), calls=calls)
+    _explain(StubClient(LLMUnavailableError("down")), calls=calls)
+    ok, reversed_, failed = calls
+    assert ok["accepted"] is True and ok["prompt"] == "polish_explanation@v1"
+    assert (ok["latency_ms"], ok["tokens_in"], ok["tokens_out"], ok["cached"]) == (
+        420, 310, 55, False,
+    )  # fmt: skip
+    assert reversed_["accepted"] is False and "approve" in reversed_["rejected_because"].lower()
+    assert failed["accepted"] is False and failed["error"] == "down"
+    assert failed["prompt"].startswith("polish_explanation@") and failed["cached"] is False
 
 
 def test_explain_falls_back_to_template() -> None:

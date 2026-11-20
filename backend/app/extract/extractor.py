@@ -435,7 +435,7 @@ def extract(
         if call.extra.get("thinking"):
             call_msg += f" · thinking: {call.extra['thinking']}"
     events = [
-        ExtractEvent(call_msg, {"llm_call": call_data}),
+        ExtractEvent(call_msg, {"llm_call": {"kind": "extract", **call_data}}),
         ExtractEvent(
             f"Found {len(fields)} fields and {len(extraction.line_items)} line items; "
             f"{grounded} located on the page",

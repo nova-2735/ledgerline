@@ -8,7 +8,10 @@ import pytest
 from app.decide.decision import decide, evaluate, order_key
 from app.enums import CheckStatus, Outcome, ReasonCode, Route, Severity, StageName
 from app.models.checks import CheckResult
-from tests.rules.builders import make_ctx, make_extraction, policy
+from app.models.decision import Decision
+from app.models.extraction import InvoiceExtraction
+from app.rules.registry import flatten, run_all
+from tests.rules.builders import S01_LINES, make_ctx, make_extraction, policy
 
 C = ReasonCode
 AT = datetime(2026, 11, 20, 6, 0, tzinfo=UTC)
@@ -141,3 +144,26 @@ def test_posting_only_on_approve() -> None:
     assert ok.posting is not None
     held = decide([HOLD], ctx.extraction, policy(), ctx=ctx, decided_at=AT, polish=False)
     assert held.posting is None
+
+
+def _with_rules(ex: InvoiceExtraction) -> Decision:
+    ctx = make_ctx(ex)
+    checks = flatten(run_all(ctx))
+    return evaluate(checks, ex, policy(), ctx=ctx, decided_at=AT, polish=False).decision
+
+
+def test_approve_always_carries_a_posting() -> None:
+    d = _with_rules(make_extraction())
+    assert d.outcome == Outcome.APPROVE and d.posting is not None
+    assert sum(ln.taxable_amount + ln.tax_amount for ln in d.posting.lines) == d.posting.total
+
+
+def test_unread_line_amounts_hold_instead_of_approving_without_posting() -> None:
+    """Regression: an S01-like invoice with unread line amounts auto-approved with
+    posting=null."""
+    lines = [dict(S01_LINES[0], amount=None), dict(S01_LINES[1], amount=None)]
+    d = _with_rules(make_extraction(line_items=lines))
+    assert (d.outcome, d.route, d.final) == (Outcome.HOLD, Route.ap_clerk, False)
+    assert d.primary_reason == C.POSTING_INCOMPLETE and d.posting is None
+    assert d.handoff is not None and "couldn't be read" in d.handoff.question
+    assert d.headline == "Hold — Can't build the posting"

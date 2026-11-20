@@ -191,12 +191,14 @@ def infer_candidates(
     extraction: InvoiceExtraction,
     vendor_id: str | None,
     ledger: Ledger | None = None,
+    exclude_run_id: int | None = None,
 ) -> list[POCandidate]:
     """Score every open PO of the vendor (or up to 20 most recent open POs when the vendor is
-    unknown), best first; ties go to the lower PO number."""
+    unknown), best first; ties go to the lower PO number. `exclude_run_id` leaves that run's own
+    billing out of the balances (re-checking a run that was already approved)."""
     ledger = ledger or Ledger(session)
     candidates = [
-        score_po(extraction, po, ledger.balance_map(po.po_number))
+        score_po(extraction, po, ledger.balance_map(po.po_number, exclude_run_id))
         for po in _open_pos(session, vendor_id)
     ]
     return sorted(candidates, key=lambda c: (-c.score, c.po_number))

@@ -119,6 +119,15 @@ def _sse(event_id: int, type_: str, data: str) -> str:
     return f"id: {event_id}\nevent: {type_}\ndata: {data}\n\n"
 
 
+def _settled(run_id: int, seq: int) -> bool:
+    """No event after `seq` and the run isn't executing (a review may have just requeued it)."""
+    with get_sessionmaker()() as session:
+        if events_after(session, run_id, seq):
+            return False
+        run = session.get(RunRow, run_id)
+        return run is None or run.status not in (RunStatus.queued.value, RunStatus.running.value)
+
+
 async def _stream(run_id: int, after: int) -> AsyncIterator[str]:
     cursor = after
     started = last_sent = time.monotonic()
@@ -130,8 +139,10 @@ async def _stream(run_id: int, after: int) -> AsyncIterator[str]:
             cursor = ev.seq
             yield _sse(ev.seq, ev.type, json.dumps(ev.model_dump(mode="json")))
             last_sent = time.monotonic()
-            if ev.type in TERMINAL:
-                return
+        # A replay from the start passes earlier terminal events (before a review and resume);
+        # close only after the latest one, once the run is no longer queued or running.
+        if batch and batch[-1].type in TERMINAL and _settled(run_id, cursor):
+            return
         if time.monotonic() - last_sent >= HEARTBEAT_S:
             yield ": keep-alive\n\n"
             last_sent = time.monotonic()

@@ -20,6 +20,7 @@ from app.api.deps import APIError, require_access
 from app.config import get_settings
 from app.ingest.ocr import ocr_available
 from app.models.api import HealthResponse
+from app.pipeline import runner
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -60,6 +61,14 @@ def _install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error(_: Request, exc: APIError) -> JSONResponse:
         return JSONResponse(_error_body(exc.detail, exc.code), status_code=exc.status_code)
+
+    @app.exception_handler(runner.ResetInProgress)
+    async def reset_in_progress(_: Request, exc: runner.ResetInProgress) -> JSONResponse:
+        return JSONResponse(_error_body(str(exc), "reset_in_progress"), status_code=409)
+
+    @app.exception_handler(runner.ResetTimeout)
+    async def reset_timeout(_: Request, exc: runner.ResetTimeout) -> JSONResponse:
+        return JSONResponse(_error_body(str(exc), "reset_timeout"), status_code=409)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:

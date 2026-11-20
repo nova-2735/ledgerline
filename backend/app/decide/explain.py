@@ -1,15 +1,18 @@
 """Explanation: a template summary and bullets, optionally polished by the model.
 
-The polish is accepted only when every number in the template summary survives and the outcome
-word is still there; otherwise the template stands (`generated_by="template"`).
+The polish is accepted only when every number in the template summary survives, the outcome word
+is still there (not negated) and no other outcome's verb was added; otherwise the template stands
+(`generated_by="template"`).
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.enums import CheckStatus, Outcome, Route
 from app.llm.base import LLMClient, LLMError, polish_is_safe
+from app.llm.prompts import load_prompt
 from app.models.checks import CheckResult
 from app.models.decision import Explanation, Message
 from app.rules.base import inr
@@ -22,6 +25,14 @@ OUTCOME_WORDS = {
     Outcome.RETURN: "return",
     Outcome.REJECT: "reject",
 }
+# Verbs that name an outcome, matched as word stems ("approve", "approved", "approval" …).
+OUTCOME_VERBS = {
+    Outcome.APPROVE: re.compile(r"\bapprov\w*|\bpay\b|\bpaid\b", re.IGNORECASE),
+    Outcome.HOLD: re.compile(r"\bhold\w*|\bheld\b", re.IGNORECASE),
+    Outcome.RETURN: re.compile(r"\breturn\w*|\bsend\s+(?:it\s+)?back\b", re.IGNORECASE),
+    Outcome.REJECT: re.compile(r"\breject\w*|\bdecline\w*", re.IGNORECASE),
+}
+_NEGATED = r"\b(?:not|no|never|don't|do not|doesn't|does not|shouldn't|should not|won't)\s+"
 
 
 def _what(facts: Facts) -> str:
@@ -63,11 +74,27 @@ def bullets(checks: list[CheckResult]) -> list[str]:
     return failing + warnings + resolved
 
 
-def polish_accepted(original: str, rewritten: str, outcome: Outcome) -> bool:
-    """All template numbers kept, still short, and the outcome word still present."""
+def polish_rejection(original: str, rewritten: str, outcome: Outcome) -> str | None:
+    """Why a rewrite can't replace the template summary, or None when it can: every template
+    number kept, still short, the outcome word present and not negated, and no other outcome's
+    verb added (“Do not hold invoice 42. Approve payment.” is not a HOLD summary)."""
     if rewritten.strip() == original.strip():
-        return False
-    return polish_is_safe(original, rewritten) and OUTCOME_WORDS[outcome] in rewritten.lower()
+        return "unchanged"
+    if not polish_is_safe(original, rewritten):
+        return "dropped a number or ran too long"
+    if OUTCOME_WORDS[outcome] not in rewritten.lower():
+        return "lost the outcome"
+    own = OUTCOME_VERBS[outcome].pattern.replace(r"\b", "")
+    if re.search(_NEGATED + rf"(?:\w+\s+)?(?:{own})", rewritten, re.IGNORECASE):
+        return "negated the outcome"
+    for other, verb in OUTCOME_VERBS.items():
+        if other != outcome and len(verb.findall(rewritten)) > len(verb.findall(original)):
+            return f"mentions {other.value} instead"
+    return None
+
+
+def polish_accepted(original: str, rewritten: str, outcome: Outcome) -> bool:
+    return polish_rejection(original, rewritten, outcome) is None
 
 
 def explain(
@@ -81,7 +108,10 @@ def explain(
     internal_note: Message | None,
     client: LLMClient | None = None,
     polish: bool = False,
+    calls: list[dict[str, Any]] | None = None,
 ) -> Explanation:
+    """`calls` collects the `llm_call` payload of the polish call (accepted or not) for the run
+    log."""
     summary = template_summary(outcome, route, primary, checks, facts)
     generated_by: Any = "template"
     model = None
@@ -92,12 +122,25 @@ def explain(
             "primary_reason": primary.code.value if primary and primary.code else None,
             "total": str(facts.total) if facts.total is not None else None,
         }
+        prompt = load_prompt("polish_explanation")
+        call: dict[str, Any] = {"kind": "polish", "provider": client.provider,
+                                "model": client.model_light, "prompt": prompt.ref,
+                                "cached": False}  # fmt: skip
         try:
-            rewritten = client.polish(summary, info)
-        except LLMError:
-            rewritten = summary
-        if polish_accepted(summary, rewritten, outcome):
-            summary, generated_by, model = rewritten.strip(), "llm", client.model_light
+            rewritten, meta = client.polish(summary, info)
+            call = meta.event_data("polish")
+            rejected = polish_rejection(summary, rewritten, outcome)
+        except LLMError as exc:
+            rejected = None
+            call["error"] = str(exc)
+        else:
+            if rejected is None:
+                summary, generated_by, model = rewritten.strip(), "llm", meta.model
+        call["accepted"] = generated_by == "llm"
+        if rejected is not None:
+            call["rejected_because"] = rejected
+        if calls is not None:
+            calls.append(call)
     return Explanation(
         summary=summary,
         bullets=bullets(checks),

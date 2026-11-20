@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app import clock
 from app.api.deps import DB, ERROR_RESPONSES, APIError
 from app.config import get_settings
-from app.decide.decision import evaluate, redecide
+from app.decide.decision import evaluate
 from app.decide.policy import Policy, active_policy, save_overrides
 from app.enums import Outcome
 from app.models.api import (
@@ -21,6 +21,7 @@ from app.models.api import (
     PolicyUpdateRequest,
     PolicyVersionResponse,
 )
+from app.models.decision import Decision
 from app.models.extraction import InvoiceExtraction
 from app.orm import RunRow
 from app.rules.base import ReviewOverrides, build_context
@@ -62,23 +63,8 @@ def preview_policy(body: PolicyPreviewRequest, db: DB) -> PolicyPreviewResponse:
     changed: list[PolicyPreviewChange] = []
     unchanged = 0
     for run in rows:
-        ctx = build_context(
-            db,
-            InvoiceExtraction.model_validate(run.extraction),
-            policy=current,
-            today=run.created_at.astimezone(clock.IST).date(),
-            sender_email=run.sender_email,
-            overrides=ReviewOverrides.model_validate(run.overrides or {}),
-            file_sha256=run.document.sha256,
-            run_id=run.id,
-        )
-        ctx = dataclasses.replace(
-            ctx, ledger_rows=[r for r in ctx.ledger_rows if r.run_id < run.id]
-        )
-        ctx = dataclasses.replace(ctx, file_rows=[r for r in ctx.file_rows if r.run_id < run.id])
-        before = evaluate(flatten(run_all(ctx)), ctx.extraction, current, ctx=ctx, polish=False)
-        after = redecide(ctx, proposed, polish=False)
-        b, a = before.decision, after.decision
+        b = _decide(db, run, current)
+        a = _decide(db, run, proposed)
         if a.outcome == b.outcome:
             unchanged += 1
             continue
@@ -94,6 +80,28 @@ def preview_policy(body: PolicyPreviewRequest, db: DB) -> PolicyPreviewResponse:
         )
     db.rollback()
     return PolicyPreviewResponse(changed=changed, unchanged=unchanged)
+
+
+def _decide(db: DB, run: RunRow, policy: Policy) -> Decision:
+    """Rules + decide for a stored run under `policy`. The context is built under that policy
+    too, so PO inference thresholds and the duplicate window apply; the run's own billing is left
+    out of the balances and later runs out of the duplicate history."""
+    ctx = build_context(
+        db,
+        InvoiceExtraction.model_validate(run.extraction),
+        policy=policy,
+        today=run.created_at.astimezone(clock.IST).date(),
+        sender_email=run.sender_email,
+        overrides=ReviewOverrides.model_validate(run.overrides or {}),
+        file_sha256=run.document.sha256,
+        run_id=run.id,
+    )
+    ctx = dataclasses.replace(
+        ctx,
+        ledger_rows=[r for r in ctx.ledger_rows if r.run_id < run.id],
+        file_rows=[r for r in ctx.file_rows if r.run_id < run.id],
+    )
+    return evaluate(flatten(run_all(ctx)), ctx.extraction, policy, ctx=ctx, polish=False).decision
 
 
 @router.put("/policy", response_model=PolicyVersionResponse)

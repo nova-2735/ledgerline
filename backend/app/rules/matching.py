@@ -10,10 +10,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 from itertools import combinations
-from typing import Literal
+from typing import Any, Literal
 
 from app.enums import CheckStatus, MatchType, Outcome, ReasonCode, Route, Severity, StageName
 from app.llm.base import LLMError, validate_line_groups
+from app.llm.prompts import load_prompt
 from app.models.checks import CheckResult, MatchingView, MatchRow
 from app.models.extraction import LineItem
 from app.models.reference import POLine, POLineBalance, PurchaseOrder
@@ -52,6 +53,7 @@ class Analysis:
     results: dict[str, list[CheckResult]] = field(default_factory=lambda: defaultdict(list))
     row_codes: dict[int, list[CheckResult]] = field(default_factory=lambda: defaultdict(list))
     llm_note: str | None = None
+    llm_call: dict[str, Any] | None = None  # `llm_call` event payload of the map_lines call
 
 
 # --- mapping (RULES §5) --------------------------------------------------------------------------
@@ -97,7 +99,10 @@ def _desc(inv: LineItem, pl: POLine) -> float:
     return description_similarity(inv.description, pl.description)
 
 
-def map_lines(ctx: RuleContext, po: PurchaseOrder) -> tuple[list[Mapped], str | None]:
+def map_lines(
+    ctx: RuleContext, po: PurchaseOrder
+) -> tuple[list[Mapped], str | None, dict[str, Any] | None]:
+    """Rows, a note when the model suggestion failed, and the model call (for the run log)."""
     lines = ctx.extraction.line_items
     by_no = {pl.line_no: pl for pl in po.lines}
 
@@ -135,15 +140,20 @@ def map_lines(ctx: RuleContext, po: PurchaseOrder) -> tuple[list[Mapped], str | 
     # step 5: model suggestions for what is still unmapped (never with the fake provider)
     llm_rows: dict[int, Mapped] = {}
     note = None
+    call: dict[str, Any] | None = None
     unmapped = [ln.index for ln in lines if ln.index not in pairs and ln.index not in bundles]
     if unmapped and ctx.llm is not None and ctx.llm.is_live:
+        prompt = load_prompt("map_lines")
+        call = {"kind": "map_lines", "provider": ctx.llm.provider, "model": ctx.llm.model_light,
+                "prompt": prompt.ref, "cached": False}  # fmt: skip
         try:
-            groups = validate_line_groups(
-                ctx.llm.map_lines(ctx.extraction.meta.raw, po), len(lines), list(by_no)
-            )
+            suggested, meta = ctx.llm.map_lines(ctx.extraction.meta.raw, po)
+            call = meta.event_data("map_lines")
+            groups = validate_line_groups(suggested, len(lines), list(by_no))
         except LLMError as exc:
             groups = []
             note = f"Line-mapping suggestion unavailable: {exc}"
+            call["error"] = str(exc)
         for g in groups:
             if len(g.invoice_lines) != 1 or not g.po_lines:
                 continue
@@ -157,6 +167,8 @@ def map_lines(ctx: RuleContext, po: PurchaseOrder) -> tuple[list[Mapped], str | 
             else:
                 continue
             used.update(g.po_lines)
+        if call is not None:
+            call["accepted_groups"] = len(llm_rows)
 
     # step 6: assemble rows in invoice order, then the unused PO lines
     rows: list[Mapped] = []
@@ -175,7 +187,7 @@ def map_lines(ctx: RuleContext, po: PurchaseOrder) -> tuple[list[Mapped], str | 
     for pl in po.lines:
         if pl.line_no not in used:
             rows.append(Mapped("unmatched_po", [], [pl.line_no], "fuzzy"))
-    return rows, note
+    return rows, note, call
 
 
 # --- per-row checks ------------------------------------------------------------------------------
@@ -366,8 +378,8 @@ def analyse(ctx: RuleContext) -> Analysis:
 def _analyse(ctx: RuleContext) -> Analysis:
     po = ctx.po
     assert po is not None
-    rows, note = map_lines(ctx, po)
-    a = Analysis(rows=rows, llm_note=note)
+    rows, note, call = map_lines(ctx, po)
+    a = Analysis(rows=rows, llm_note=note, llm_call=call)
     lines = {ln.index: ln for ln in ctx.extraction.line_items}
     by_no = {pl.line_no: pl for pl in po.lines}
     price_ok = qty_ok = received_ok = tax_ok = 0

@@ -318,6 +318,10 @@ def _none(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]
     return {}
 
 
+def _posting_gaps(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    return {"gaps": "; ".join(c.evidence.get("gaps") or []) or "some values are missing"}
+
+
 def _generic(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
     return {"message": c.message, "owner": ROUTE_LABELS.get(c.route, "reviewer")}
 
@@ -470,6 +474,13 @@ TEMPLATES: dict[ReasonCode, Template] = {
         "Controller approval.",
         (A.approve, A.reject),
         _none,
+    ),
+    C.POSTING_INCOMPLETE: Template(
+        "Everything checks out, but the invoice can't be posted: {gaps}. Can you correct it "
+        "from the document?",
+        "Correct the missing values from the document, or return the invoice to the vendor.",
+        (A.correct_fields, A.send_to_vendor, A.reject),
+        _posting_gaps,
     ),
     C.DOC_PROFORMA: Template(
         _VENDOR_Q,

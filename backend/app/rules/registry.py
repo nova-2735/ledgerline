@@ -37,7 +37,7 @@ def run_stage(stage: StageName, ctx: RuleContext) -> list[CheckResult]:
 
 def stops_pipeline(results: list[CheckResult]) -> ReasonCode | None:
     for r in results:
-        if r.status == CheckStatus.fail and r.code in STOPPING_CODES:
+        if r.status == CheckStatus.fail and not r.resolved_by_review and r.code in STOPPING_CODES:
             return r.code
     return None
 

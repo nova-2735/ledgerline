@@ -49,6 +49,7 @@ export const reasons = {
   QTY_EXCEEDS_RECEIVED: 'Billed more than received', GOODS_NOT_RECEIVED: 'Goods not received',
   DUPLICATE_SAME_FILE: 'Duplicate file', DUPLICATE_SAME_INVOICE: 'Duplicate invoice',
   DUPLICATE_SUSPECTED: 'Possible duplicate', APPROVAL_LIMIT_EXCEEDED: 'Above approval limit',
+  POSTING_INCOMPLETE: 'Posting incomplete',
 } satisfies Record<Schemas['ReasonCode'], string>
 
 export const actions = {

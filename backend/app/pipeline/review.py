@@ -1,7 +1,8 @@
 """Reviewer actions (CONTRACTS §4.7): finalise a run, or record an override and resume it.
 
 - approve / reject / send_to_vendor finalise: a new decision version records the reviewer's call.
-  Approve is refused (409) while a critical check is unresolved (RULES §3).
+  Approve is refused (409) while a critical, FIELD_MISSING_* or POSTING_INCOMPLETE check is
+  unresolved, or when no complete posting payload can be built (RULES §3).
 - confirm_po / verify_bank / not_duplicate resume from `resolve_po`; correct_fields / reopen
   resume from `validate_document`. The rules then decide again (a new decision version).
 """
@@ -15,8 +16,8 @@ from sqlalchemy.orm import Session
 from app import clock
 from app.db import get_sessionmaker
 from app.decide.decision import is_active
-from app.decide.posting import build_posting
-from app.enums import ActionType, Outcome, Route, RunStatus, Severity, StageName
+from app.decide.posting import PostingResult, posting_for
+from app.enums import ActionType, Outcome, ReasonCode, Route, RunStatus, Severity, StageName
 from app.llm.base import LLMClient
 from app.models.api import ReviewRequest
 from app.models.checks import CheckResult, MatchingView
@@ -56,6 +57,15 @@ ACTION_LABEL = {
     ActionType.not_duplicate: "Not-a-duplicate",
     ActionType.reopen: "Reopen",
 }
+# Approve is refused while one of these is unresolved: a final APPROVE needs these fields.
+FIELD_MISSING = frozenset(
+    {
+        ReasonCode.FIELD_MISSING_INVOICE_NUMBER,
+        ReasonCode.FIELD_MISSING_INVOICE_DATE,
+        ReasonCode.FIELD_MISSING_TOTAL,
+        ReasonCode.FIELD_MISSING_SUPPLIER,
+    }
+)
 VERB = {
     Outcome.APPROVE: "Approved",
     Outcome.REJECT: "Rejected",
@@ -145,17 +155,50 @@ def _apply_overrides(overrides: ReviewOverrides, req: ReviewRequest) -> ReviewOv
     return data
 
 
-def _posting(session: Session, run: RunRow) -> PostingPayload | None:
-    if run.extraction is None or run.matching is None:
-        return None
+def _posting(session: Session, run: RunRow) -> PostingResult:
+    if run.extraction is None:
+        return PostingResult(None, ["the invoice hasn't been read"])
     vendor = get_vendor(session, run.vendor_id) if run.vendor_id else None
     po = get_po(session, run.po_number) if run.po_number else None
-    return build_posting(
+    return posting_for(
         InvoiceExtraction.model_validate(run.extraction),
         vendor,
         po,
-        MatchingView.model_validate(run.matching),
+        MatchingView.model_validate(run.matching) if run.matching else None,
     )
+
+
+def _approvable(session: Session, run: RunRow, checks: list[CheckResult]) -> PostingPayload:
+    """The posting an approve would produce; `ReviewError` 409 when approve isn't allowed."""
+    active = [c for c in checks if is_active(c)]
+    critical = [c for c in active if c.severity == Severity.critical]
+    if critical:
+        raise ReviewError(
+            409,
+            "critical_unresolved",
+            f"Can't approve while “{critical[0].title}” is unresolved. "
+            "Resolve it first (for bank details: call the vendor on the number on file "
+            "and record the call-back).",
+        )
+    missing = [c for c in active if c.code in FIELD_MISSING]
+    if missing:
+        raise ReviewError(
+            409,
+            "field_missing",
+            f"Can't approve: “{missing[0].title}”. Correct the field from the document, or "
+            "return the invoice to the vendor.",
+        )
+    result = _posting(session, run)
+    blocked = [c for c in active if c.code == ReasonCode.POSTING_INCOMPLETE]
+    if blocked or result.posting is None:
+        gaps = "; ".join(result.gaps) or (blocked[0].message if blocked else "")
+        raise ReviewError(
+            409,
+            "posting_incomplete",
+            f"Can't approve: there's no complete posting for this invoice ({gaps}). "
+            "Correct the fields, or return or reject the invoice.",
+        )
+    return result.posting
 
 
 def _human_decision(
@@ -195,8 +238,21 @@ def apply_review(
     client: LLMClient | None = None,
     polish: bool | None = None,
 ) -> ReviewAction:
-    """Record a review action and act on it. Raises `ReviewError` for invalid requests."""
+    """Record a review action and act on it. Raises `ReviewError` for invalid requests and
+    `runner.ResetInProgress` while the demo is being reset."""
     _validate(req)
+    with runner.work():
+        return _apply(run_id, req, background=background, client=client, polish=polish)
+
+
+def _apply(
+    run_id: int,
+    req: ReviewRequest,
+    *,
+    background: bool,
+    client: LLMClient | None,
+    polish: bool | None,
+) -> ReviewAction:
     with get_sessionmaker()() as session:
         run = session.get(RunRow, run_id)
         if run is None:
@@ -206,16 +262,7 @@ def apply_review(
             raise ReviewError(409, "no_decision", "This invoice has no decision to review yet.")
         latest = Decision.model_validate(run.decision)
         checks = [CheckResult.model_validate(c) for c in run.checks or []]
-        if req.action == ActionType.approve:
-            critical = [c for c in checks if is_active(c) and c.severity == Severity.critical]
-            if critical:
-                raise ReviewError(
-                    409,
-                    "critical_unresolved",
-                    f"Can't approve while “{critical[0].title}” is unresolved. "
-                    "Resolve it first (for bank details: call the vendor on the number on file "
-                    "and record the call-back).",
-                )
+        posting = _approvable(session, run, checks) if req.action == ActionType.approve else None
         if req.action == ActionType.confirm_po and get_po(session, req.po_number or "") is None:
             raise ReviewError(422, "po_not_found", f"There is no purchase order {req.po_number}.")
 
@@ -245,10 +292,10 @@ def apply_review(
                     for c in checks
                 ]
                 run.checks = [c.model_dump(mode="json") for c in checks]
-            posting = _posting(session, run) if outcome == Outcome.APPROVE else None
             decision = _human_decision(latest, outcome, req, posting)
-            runner.record_outcome(session, run, decision)
-            session.commit()
+            with runner.ledger_lock:
+                runner.record_outcome(session, run, decision)
+                session.commit()
             review = to_model(row)
             emit(
                 run_id,

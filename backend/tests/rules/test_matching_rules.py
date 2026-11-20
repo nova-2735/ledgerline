@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from app.enums import CheckStatus, Route
+from app.llm.base import CallMeta, LineGroup, LLMClient
 from app.models.checks import CheckResult
 from app.rules import matching as m
 from app.rules.base import RuleContext
@@ -200,3 +202,61 @@ def test_matching_skips_without_po_or_with_wrong_vendor() -> None:
         results = run_matching(ctx)
         assert statuses(results) == ["skip"] * len(m.RULES)
         assert m.build_view(ctx).rows == []
+
+
+class _Suggests(LLMClient):
+    """A live model that suggests fixed line groups."""
+
+    provider = "stub"
+    model = model_light = "stub-light"
+    is_live = True
+
+    def __init__(self, groups: list[LineGroup]) -> None:
+        self.groups = groups
+
+    def extract_invoice(self, pdf_bytes: bytes, doc: Any) -> Any:
+        raise NotImplementedError
+
+    def map_lines(self, inv: Any, po: Any) -> tuple[list[LineGroup], CallMeta]:
+        meta = CallMeta(
+            provider="stub",
+            model="stub-light",
+            prompt_id="map_lines",
+            prompt_version="v1",
+            latency_ms=12,
+            input_tokens=90,
+            output_tokens=8,
+        )
+        return self.groups, meta
+
+    def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
+        raise NotImplementedError
+
+
+def _s14_with(groups: list[LineGroup]) -> RuleContext:
+    ex = make_extraction(
+        line_items=[line("Annual platform support, pro-rated", "1", "400000.00")],
+        subtotal="400,000.00", tax_lines=[], total=None, amount_in_words=None,
+    )  # fmt: skip
+    ctx = make_ctx(ex, vendor="V005", po="KF-PO-0133")
+    return dataclasses.replace(ctx, llm=_Suggests(groups))
+
+
+def test_model_bundle_repeating_a_po_line_is_rejected() -> None:
+    """Regression: a suggested bundle [1, 1] was accepted and counted PO line 1 twice."""
+    ctx = _s14_with([LineGroup(invoice_lines=[0], po_lines=[1, 1], kind="bundle", rationale="")])
+    a = m.analyse(ctx)
+    assert [r.kind for r in a.rows if r.invoice] == ["unmatched_invoice"]
+    assert a.llm_call is not None and "repeats a PO line" in a.llm_call["error"]
+    assert a.llm_note is not None
+
+
+def test_model_line_mapping_call_is_recorded() -> None:
+    """Regression: the map_lines call left no trace in the run log."""
+    ctx = _s14_with([LineGroup(invoice_lines=[0], po_lines=[1, 2], kind="bundle", rationale="")])
+    a = m.analyse(ctx)
+    assert [r.matched_by for r in a.rows if r.invoice] == ["llm"]
+    call = a.llm_call
+    assert call is not None and call["kind"] == "map_lines" and call["prompt"] == "map_lines@v1"
+    assert (call["latency_ms"], call["tokens_in"], call["tokens_out"]) == (12, 90, 8)
+    assert call["cached"] is False and call["accepted_groups"] == 1

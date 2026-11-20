@@ -58,8 +58,18 @@ class FakeClient(LLMClient):
         )
         return raw, meta
 
-    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> list[LineGroup]:
-        return []
+    def _meta(self, prompt_id: str) -> CallMeta:
+        prompt = load_prompt(prompt_id)
+        return CallMeta(
+            provider=self.provider,
+            model=self.model_light,
+            prompt_id=prompt.id,
+            prompt_version=prompt.version,
+            latency_ms=0,
+        )
 
-    def polish(self, summary: str, facts: dict[str, Any]) -> str:
-        return summary
+    def map_lines(self, inv: RawInvoice, po: PurchaseOrder) -> tuple[list[LineGroup], CallMeta]:
+        return [], self._meta("map_lines")
+
+    def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
+        return summary, self._meta("polish_explanation")

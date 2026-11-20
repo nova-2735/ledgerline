@@ -174,9 +174,27 @@ class Ledger:
     ) -> list[LedgerEntry]:
         """Comparable earlier invoices of a vendor whose invoice date is within `window_days` of
         `around` (default today). Rows without a date are kept; REJECT/RETURN rows are not."""
+        stmt = select(InvoiceLedgerRow).where(InvoiceLedgerRow.vendor_id == vendor_id)
+        return self._comparable(stmt, window_days, around, exclude_run_id)
+
+    def rows_for_file(
+        self,
+        sha256: str,
+        window_days: int,
+        *,
+        around: date | None = None,
+        exclude_run_id: int | None = None,
+    ) -> list[LedgerEntry]:
+        """Comparable earlier runs of the same file (any vendor), within the same date window as
+        the other duplicate checks."""
+        stmt = select(InvoiceLedgerRow).where(InvoiceLedgerRow.file_sha256 == sha256)
+        return self._comparable(stmt, window_days, around, exclude_run_id)
+
+    def _comparable(
+        self, stmt: Any, window_days: int, around: date | None, exclude_run_id: int | None
+    ) -> list[LedgerEntry]:
         centre = around or clock.today()
         lo, hi = centre - timedelta(days=window_days), centre + timedelta(days=window_days)
-        stmt = select(InvoiceLedgerRow).where(InvoiceLedgerRow.vendor_id == vendor_id)
         out = []
         for row in self.session.scalars(stmt.order_by(InvoiceLedgerRow.run_id)):
             if row.run_id == exclude_run_id or row.final_outcome in NOT_COMPARABLE:
@@ -185,15 +203,6 @@ class Ledger:
                 continue
             out.append(self._read(row))
         return out
-
-    def rows_for_file(self, sha256: str, *, exclude_run_id: int | None = None) -> list[LedgerEntry]:
-        """Comparable earlier runs of the same file (any vendor)."""
-        stmt = select(InvoiceLedgerRow).where(InvoiceLedgerRow.file_sha256 == sha256)
-        return [
-            self._read(r)
-            for r in self.session.scalars(stmt.order_by(InvoiceLedgerRow.run_id))
-            if r.run_id != exclude_run_id and r.final_outcome not in NOT_COMPARABLE
-        ]
 
     def count(self) -> int:
         return int(self.session.scalar(select(func.count()).select_from(InvoiceLedgerRow)) or 0)

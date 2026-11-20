@@ -2932,7 +2932,8 @@
           "DUPLICATE_SAME_FILE",
           "DUPLICATE_SAME_INVOICE",
           "DUPLICATE_SUSPECTED",
-          "APPROVAL_LIMIT_EXCEEDED"
+          "APPROVAL_LIMIT_EXCEEDED",
+          "POSTING_INCOMPLETE"
         ],
         "title": "ReasonCode",
         "type": "string"
