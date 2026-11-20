@@ -28,3 +28,9 @@
 - PO inference with an unknown vendor scores the 20 most recent open POs (by PO date).
 - Price comparison for tax-inclusive lines uses the pre-tax unit price (taxable amount ÷ quantity).
 - Duplicate-check ledger rows are taken within `window_days` either side of the given date (default today); rows without an invoice date are always kept.
+- Rules: warnings carry no outcome hint (they never decide an outcome); each per-row matching rule reports one pass summarising the rows that passed plus one result per row that didn't.
+- Rules: a missing supplier GSTIN (with a supplier name present) fails T01 as `GSTIN_INVALID`; no GST charged at all skips T03/T04.
+- Rules: a confirmed PO keeps the original `PO_INFERRED` / `PO_AMBIGUOUS` / `PO_MISSING` / `PO_NOT_FOUND` result, marked resolved by review.
+- Matching: a bundled invoice line bills the full ordered quantity of each PO line in the bundle; header amount at risk is |Σ (row difference × (1 + PO GST rate))|.
+- Matching: unmatched rows carry `matched_by="fuzzy"` (the contract has no "none" value); model line-mapping suggestions are accepted only for one-to-one and bundle groups.
+- Policy: `policy_version` is written as `<version>+<8 hex>`, e.g. `2026-11-20.1+1a2b3c4d`.

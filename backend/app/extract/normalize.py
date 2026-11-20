@@ -195,7 +195,7 @@ def bank_account_valid(number: str | None) -> bool:
     return bool(number and 9 <= len(number) <= 18)
 
 
-_INVOICE_NO = re.compile(r"^[A-Z0-9/\-]{1,16}$")
+_INVOICE_NO = re.compile(r"^[A-Z0-9/\-]{1,20}$")
 
 
 def invoice_number_valid(text: str | None) -> bool:

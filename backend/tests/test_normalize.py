@@ -181,6 +181,7 @@ def test_bank_and_ifsc() -> None:
 
 def test_invoice_number_format_and_currency() -> None:
     assert invoice_number_valid("SPI/26-27/0214")
+    assert invoice_number_valid("NCS/INV/2026/0932")  # 17 chars, as Nimbus prints them
     assert not invoice_number_valid("THIS-IS-A-VERY-LONG-NUMBER")
     assert not invoice_number_valid("SPI 26 27")
     assert currency_code("Rs.") == currency_code("₹") == currency_code("INR") == "INR"

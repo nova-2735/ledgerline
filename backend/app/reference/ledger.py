@@ -7,7 +7,7 @@ other finished runs, which the duplicate checks compare against.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -19,7 +19,7 @@ from app import clock
 from app.enums import MatchType, Outcome
 from app.models.common import Dec, Money
 from app.models.reference import POLineBalance
-from app.orm import GoodsReceiptRow, InvoiceLedgerRow, PurchaseOrderRow
+from app.orm import GoodsReceiptRow, InvoiceLedgerRow, PurchaseOrderRow, RunRow
 
 # A returned invoice is expected to be re-issued and a rejected one was never payable, so
 # neither counts as an earlier invoice for the duplicate checks (RULES §1.6).
@@ -43,9 +43,11 @@ class LedgerEntry(BaseModel):
     file_sha256: str
     final_outcome: Outcome | None
     billed_lines: list[BilledLine] = []
+    display_id: str | None = None  # filled on read, for evidence
+    finished_at: datetime | None = None
 
 
-def _entry(row: InvoiceLedgerRow) -> LedgerEntry:
+def _entry(row: InvoiceLedgerRow, run: RunRow | None = None) -> LedgerEntry:
     return LedgerEntry(
         run_id=row.run_id,
         vendor_id=row.vendor_id,
@@ -57,6 +59,8 @@ def _entry(row: InvoiceLedgerRow) -> LedgerEntry:
         file_sha256=row.file_sha256,
         final_outcome=Outcome(row.final_outcome) if row.final_outcome else None,
         billed_lines=[BilledLine.model_validate(b) for b in row.billed_lines or []],
+        display_id=run.display_id if run else None,
+        finished_at=run.finished_at if run else None,
     )
 
 
@@ -69,6 +73,9 @@ class Ledger:
 
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def _read(self, row: InvoiceLedgerRow) -> LedgerEntry:
+        return _entry(row, self.session.get(RunRow, row.run_id))
 
     # --- balances ---------------------------------------------------------------------------
 
@@ -121,7 +128,7 @@ class Ledger:
     def upsert_entry(self, entry: LedgerEntry) -> None:
         """Create or replace the ledger row for a finished run."""
         row = self.session.get(InvoiceLedgerRow, entry.run_id)
-        values = entry.model_dump()
+        values = entry.model_dump(exclude={"display_id", "finished_at"})
         values["final_outcome"] = entry.final_outcome.value if entry.final_outcome else None
         values["billed_lines"] = _billed_json(entry.billed_lines)
         if row is None:
@@ -171,14 +178,14 @@ class Ledger:
                 continue
             if row.invoice_date is not None and not lo <= row.invoice_date <= hi:
                 continue
-            out.append(_entry(row))
+            out.append(self._read(row))
         return out
 
     def rows_for_file(self, sha256: str, *, exclude_run_id: int | None = None) -> list[LedgerEntry]:
         """Comparable earlier runs of the same file (any vendor)."""
         stmt = select(InvoiceLedgerRow).where(InvoiceLedgerRow.file_sha256 == sha256)
         return [
-            _entry(r)
+            self._read(r)
             for r in self.session.scalars(stmt.order_by(InvoiceLedgerRow.run_id))
             if r.run_id != exclude_run_id and r.final_outcome not in NOT_COMPARABLE
         ]

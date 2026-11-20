@@ -1,0 +1,182 @@
+"""GST checks (RULES §1.3, stage `check_tax`)."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+from app.enums import Outcome, ReasonCode, Route, Severity, StageName
+from app.models.checks import CheckResult
+from app.reference import gstin as gstin_util
+from app.rules.base import Emitter, RuleContext, inr, q2, rule, text_value
+
+STAGE = StageName.check_tax
+
+
+def supplier_gstin(ctx: RuleContext) -> str | None:
+    value = text_value(ctx.extraction.supplier_gstin)
+    return gstin_util.clean(value) if value else None
+
+
+def gstin_usable(ctx: RuleContext) -> bool:
+    return gstin_util.validate(supplier_gstin(ctx))
+
+
+@rule("T01_supplier_gstin", STAGE)
+def t01_supplier_gstin(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+    ex = ctx.extraction
+    value = supplier_gstin(ctx)
+    if value is None:
+        if ex.supplier_name.value is None:
+            return [e.skip("Supplier GSTIN", "No supplier details printed (reported above).")]
+        message = "The invoice doesn't show the supplier's GSTIN, so GST can't be claimed."
+    elif gstin_util.validate(value):
+        return [e.passed("Supplier GSTIN is valid", f"GSTIN {value} passes the checksum.")]
+    else:
+        message = f"Supplier GSTIN {value} is not a valid GSTIN (format or checksum fails)."
+    return [
+        e.fail(
+            ReasonCode.GSTIN_INVALID,
+            "Supplier GSTIN is invalid",
+            message + " Ask the vendor to correct it.",
+            severity=Severity.high,
+            route=Route.vendor,
+            hint=Outcome.RETURN,
+            evidence={"actual": value},
+        )
+    ]
+
+
+@rule("T02_buyer_gstin", STAGE)
+def t02_buyer_gstin(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+    printed = text_value(ctx.extraction.buyer_gstin)
+    ours = gstin_util.clean(ctx.company.gstin)
+    actual = gstin_util.clean(printed) if printed else None
+    evidence = {"expected": ours, "actual": actual}
+    if actual == ours:
+        return [e.passed("Billed to our GSTIN", f"Buyer GSTIN {ours} is ours.", evidence)]
+    what = f"shows buyer GSTIN {actual}" if actual else "doesn't show our GSTIN"
+    return [
+        e.fail(
+            ReasonCode.BUYER_GSTIN_MISMATCH,
+            "Not billed to our GSTIN",
+            f"The invoice {what}; it must be billed to {ctx.company.name} ({ours}) "
+            "for us to claim input tax credit.",
+            severity=Severity.high,
+            route=Route.vendor,
+            hint=Outcome.RETURN,
+            evidence=evidence,
+        )
+    ]
+
+
+def _taxable_by_rate(ctx: RuleContext) -> dict[Decimal, Decimal] | None:
+    out: dict[Decimal, Decimal] = {}
+    for ln in ctx.extraction.line_items:
+        if ln.taxable_amount is None or ln.tax_rate_pct is None:
+            return None
+        out[ln.tax_rate_pct] = out.get(ln.tax_rate_pct, Decimal()) + ln.taxable_amount
+    return out or None
+
+
+@rule("T03_tax_type", STAGE)
+def t03_tax_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+    if not gstin_usable(ctx):
+        return [e.skip("Type of GST", "Supplier GSTIN missing or invalid.")]
+    tax = ctx.extraction.tax
+    if tax.cgst == 0 and tax.sgst == 0 and tax.igst == 0:
+        return [e.skip("Type of GST", "No GST charged on this invoice.")]
+    supplier_state = gstin_util.state_code(supplier_gstin(ctx) or "")
+    buyer_state = ctx.company.state_code
+    intra = supplier_state == buyer_state
+    evidence: dict[str, object] = {
+        "supplier_state": supplier_state,
+        "place_of_supply_state": buyer_state,
+        "expected": "CGST+SGST" if intra else "IGST",
+        "charged": {"cgst": str(tax.cgst), "sgst": str(tax.sgst), "igst": str(tax.igst)},
+    }
+    ok = (tax.igst == 0) if intra else (tax.cgst == 0 and tax.sgst == 0)
+    if ok:
+        kind = "CGST + SGST" if intra else "IGST"
+        where = "within the same state" if intra else "between states"
+        return [e.passed("Right type of GST", f"{kind} for a supply {where}.", evidence)]
+    if intra:
+        rates = _taxable_by_rate(ctx) or {}
+        parts = []
+        expected_split: dict[str, str] = {}
+        for rate, taxable in sorted(rates.items()):
+            half = q2(taxable * rate / 2 / 100)
+            parts.append(f"CGST {rate / 2:g}% {inr(half)} + SGST {rate / 2:g}% {inr(half)}")
+            expected_split[str(rate)] = str(half)
+        should = "; ".join(parts) or "CGST + SGST"
+        message = (
+            f"IGST {inr(tax.igst)} was charged, but supplier and buyer are both in state "
+            f"{buyer_state}, so it should be {should}. IGST charged on a supply within the state "
+            "can't be claimed as input tax credit. Ask the vendor for a corrected invoice."
+        )
+        evidence["expected_cgst_sgst_each"] = expected_split
+    else:
+        message = (
+            f"CGST/SGST was charged, but the supplier (state {supplier_state}) and buyer "
+            f"(state {buyer_state}) are in different states, so it should be IGST. "
+            "This tax can't be claimed as input tax credit. Ask the vendor for a corrected invoice."
+        )
+    return [
+        e.fail(
+            ReasonCode.TAX_TYPE_MISMATCH,
+            "Wrong type of GST",
+            message,
+            severity=Severity.high,
+            route=Route.vendor,
+            hint=Outcome.RETURN,
+            evidence=evidence,
+        )
+    ]
+
+
+@rule("T04_tax_amount", STAGE)
+def t04_tax_amount(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+    if not gstin_usable(ctx):
+        return [e.skip("GST amounts", "Supplier GSTIN missing or invalid.")]
+    rates = _taxable_by_rate(ctx)
+    if rates is None:
+        return [e.skip("GST amounts", "Line tax rates or taxable values are missing.")]
+    tax = ctx.extraction.tax
+    full = sum((taxable * rate / 100 for rate, taxable in rates.items()), Decimal())
+    stated = {"CGST": tax.cgst, "SGST": tax.sgst, "IGST": tax.igst}
+    expected = {"CGST": q2(full / 2), "SGST": q2(full / 2), "IGST": q2(full)}
+    charged = [k for k, v in stated.items() if v != 0]
+    if not charged:
+        return [e.skip("GST amounts", "No GST charged on this invoice.")]
+    tolerance = ctx.policy.tolerances.rounding_abs
+    out = []
+    for kind in charged:
+        delta = stated[kind] - expected[kind]
+        evidence = {
+            "tax_type": kind,
+            "expected": str(expected[kind]),
+            "actual": str(stated[kind]),
+            "delta": str(delta),
+        }
+        if abs(delta) > tolerance:
+            out.append(
+                e.fail(
+                    ReasonCode.TAX_AMOUNT_MISMATCH,
+                    f"{kind} amount is wrong",
+                    f"{kind} should be {inr(expected[kind])} on the taxable value, but the "
+                    f"invoice charges {inr(stated[kind])} ({inr(abs(delta))} "
+                    f"{'too much' if delta > 0 else 'too little'}).",
+                    severity=Severity.medium,
+                    route=Route.vendor,
+                    hint=Outcome.RETURN,
+                    evidence=evidence,
+                    at_risk=abs(delta),
+                )
+            )
+        else:
+            out.append(
+                e.passed(f"{kind} amount is right", f"{kind} {inr(stated[kind])}.", evidence)
+            )
+    return out
+
+
+RULES = [t01_supplier_gstin, t02_buyer_gstin, t03_tax_type, t04_tax_amount]
