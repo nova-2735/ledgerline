@@ -1,3 +1,5 @@
+import { dayBefore } from '@/lib/dashboard'
+import { dayOf } from '@/lib/runList'
 import { ApiError, type RequestOptions, type Schemas } from '@/api/client'
 import { outcomes, reasons, stages } from '@/lib/labels'
 import { fixtures } from './fixtures'
@@ -253,39 +255,49 @@ function getQueue(route?: RequestOptions['query']) {
   return { counts, items: route?.route ? items.filter(item => item.route === route.route) : items }
 }
 
-function getStats() {
-  const base = structuredClone(fixtures.stats)
-  const runs = [...live.keys()].map(currentRun).filter(run => run.outcome && run.status !== 'running')
-  const timing = runs.flatMap(run => run.duration_ms == null ? [] : [run.duration_ms]).sort((a, b) => a - b)
-  const total = base.kpis.processed + runs.length
+function getStats(days = 30): Schemas['StatsResponse'] {
   const queue = getQueue()
-  const touchless = Math.round(base.kpis.processed * base.kpis.touchless_rate)
-    + runs.filter(run => run.outcome === 'APPROVE' && !run.review_actions.length).length
+  const today = [fixtures.health.today, ...[...live.keys()].map(id => dayOf(currentRun(id).created_at))].sort().at(-1)!
+  const first = dayBefore(today, days - 1)
+  const runs = fixtures.runs.items.filter(run => !live.has(run.id)).concat([...live.keys()].map(currentRun))
+    .filter(run => run.outcome && run.status !== 'running' && dayOf(run.created_at) >= first)
+  const daysByDate = new Map<string, Schemas['StatsDay']>(Array.from({ length: days }, (_, i) => {
+    const date = dayBefore(today, days - i - 1)
+    return [date, { date, APPROVE: 0, HOLD: 0, RETURN: 0, REJECT: 0 }] as const
+  }))
+  const reasons = new Map<Schemas['ReasonCode'], Schemas['StatsReason']>()
+  const routes = new Map<Schemas['Route'], number>()
+  const risk: (string | null)[] = []
+  const timings: number[] = []
+  let touchless = 0
   for (const run of runs) {
-    const date = run.created_at.slice(0, 10)
-    const day = base.by_day.find(item => item.date === date)
-      ?? { date, APPROVE: 0, HOLD: 0, RETURN: 0, REJECT: 0 }
-    if (!base.by_day.includes(day)) base.by_day.push(day)
-    day[run.final_outcome ?? run.outcome!]++
-    if (run.primary_reason && run.outcome !== 'APPROVE') {
-      const reason = base.by_reason.find(item => item.code === run.primary_reason)
-      if (reason) {
-        reason.count++
-        reason.amount = addMoney([reason.amount, run.total])
-      } else {
-        base.by_reason.push({ code: run.primary_reason, count: 1, amount: run.total ?? '0.00' })
-      }
+    const firstDecision = live.has(run.id) ? currentRun(run.id).decision_history[0] : null
+    const outcome = run.final_outcome ?? run.outcome!
+    daysByDate.get(dayOf(run.created_at))![outcome]++
+    if ((firstDecision?.outcome ?? run.outcome) === 'APPROVE' && (!live.has(run.id) || !currentRun(run.id).review_actions.length)) touchless++
+    if (run.source !== 'seed' && run.duration_ms != null) timings.push(run.duration_ms)
+    const reason = firstDecision?.primary_reason ?? run.primary_reason
+    const route = firstDecision?.route ?? run.route
+    if ((firstDecision?.outcome ?? run.outcome) !== 'APPROVE' && reason) {
+      const previous = reasons.get(reason)
+      reasons.set(reason, { code: reason, count: (previous?.count ?? 0) + 1, amount: addMoney([previous?.amount ?? null, run.total]) })
+      if (route && route !== 'none') routes.set(route, (routes.get(route) ?? 0) + 1)
+    }
+    if (run.final_outcome !== 'APPROVE') {
+      risk.push(live.has(run.id) ? currentRun(run.id).decision?.handoff?.amount_at_risk ?? null :
+        reason?.startsWith('DUPLICATE_') ? run.total : null)
     }
   }
+  timings.sort((a, b) => a - b)
   return {
-    ...base, by_route: Object.entries(queue.counts).map(([route, count]) => ({ route, count })),
+    by_day: Array.from(daysByDate.values()),
+    by_reason: Array.from(reasons.values()).sort((a, b) => b.count - a.count),
+    by_route: Array.from(routes, ([route, count]) => ({ route, count })),
     kpis: {
-      ...base.kpis, processed: total, awaiting_review: queue.items.length,
-      touchless_rate: total ? touchless / total : 0,
-      value_processed: addMoney([base.kpis.value_processed, ...runs.map(run => run.total)]),
-      exposure_stopped: addMoney([base.kpis.exposure_stopped, ...runs.map(run =>
-        run.final_outcome === 'APPROVE' ? null : run.decision?.handoff?.amount_at_risk ?? null)]),
-      median_decision_ms: timing.length ? (timing[Math.floor((timing.length - 1) / 2)] + timing[Math.floor(timing.length / 2)]) / 2 : null,
+      processed: runs.length, awaiting_review: queue.items.length,
+      touchless_rate: runs.length ? touchless / runs.length : 0,
+      value_processed: addMoney(runs.map(run => run.total)), exposure_stopped: addMoney(risk),
+      median_decision_ms: timings.length ? (timings[Math.floor((timings.length - 1) / 2)] + timings[Math.floor(timings.length / 2)]) / 2 : null,
     },
   }
 }
@@ -381,7 +393,7 @@ export function mockRequest(method: string, path: string, options: RequestOption
   }
   switch (path) {
     case '/health': return fixtures.health
-    case '/stats': return getStats()
+    case '/stats': return getStats(Number(options.query?.days ?? 30))
     case '/runs': return listRuns(options.query)
     case '/queue': return getQueue(options.query)
     case '/vendors': return fixtures.vendors

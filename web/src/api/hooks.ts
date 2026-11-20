@@ -28,9 +28,9 @@ export const useHealth = () => useQuery({
   staleTime: 30_000,
 })
 
-export const useStats = (refresh = false) => useQuery({
-  queryKey: queryKeys.stats,
-  queryFn: ({ signal }) => api.stats({ days: 30 }, signal),
+export const useStats = (refresh = false, days = 30) => useQuery({
+  queryKey: [...queryKeys.stats, days],
+  queryFn: ({ signal }) => api.stats({ days }, signal),
   refetchInterval: refresh ? 10_000 : false,
 })
 
@@ -59,3 +59,20 @@ export const useQueue = (route?: NonNullable<Parameters<typeof api.queue>[0]>['r
     queryFn: ({ signal }) => api.queue(route ? { route } : {}, signal),
     enabled,
   })
+
+
+export const useAllRuns = (refresh = false) => useQuery({
+  queryKey: [...queryKeys.runs, 'all'],
+  queryFn: async ({ signal }) => {
+    const limit = 200
+    const first = await api.listRuns({ limit, offset: 0 }, signal)
+    const items = [...first.items]
+    for (let offset = first.items.length; offset < first.total; offset += limit) {
+      const page = await api.listRuns({ limit, offset }, signal)
+      if (!page.items.length) break
+      items.push(...page.items)
+    }
+    return [...new Map(items.map(run => [run.id, run])).values()]
+  },
+  refetchInterval: refresh ? 10_000 : false,
+})
