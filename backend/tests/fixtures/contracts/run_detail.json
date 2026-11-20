@@ -42,5 +42,6 @@
   "page_count": 1,
   "file_sha256": "9f2c4e1b7a3d5f60c8e2a1b4d7f09e3c6a5b8d2e1f4c7a0b3e6d9f2c5a8b1e4d",
   "matching": null,
-  "policy_version": null
+  "policy_version": null,
+  "approval_block": null
 }

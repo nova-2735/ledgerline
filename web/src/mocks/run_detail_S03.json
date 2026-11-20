@@ -779,5 +779,6 @@
       }
     ]
   },
-  "policy_version": "v1"
+  "policy_version": "v1",
+  "approval_block": null
 }

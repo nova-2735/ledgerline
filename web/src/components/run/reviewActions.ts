@@ -2,10 +2,9 @@ import type { Schemas } from '@/api/client'
 import { shortcuts, type Shortcut } from '@/lib/shortcuts'
 import { actions } from '@/lib/labels'
 
+/** Why the API would refuse approve right now (its own guard, sent with the run). */
 export function approvalBlock(run: Schemas['RunDetail']): string | undefined {
-  const unresolved = run.checks.filter(check => !check.resolved_by_review && (check.status === 'fail' || check.status === 'warn'))
-  if (unresolved.some(check => check.code === 'BANK_DETAILS_CHANGED')) return 'Verify the changed bank details before approving payment.'
-  if (unresolved.some(check => check.severity === 'critical')) return 'Resolve the critical check before approving payment.'
+  return run.approval_block ?? undefined
 }
 
 export function reviewActions(run?: Schemas['RunDetail']) {

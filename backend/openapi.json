@@ -3133,6 +3133,17 @@
       },
       "RunDetail": {
         "properties": {
+          "approval_block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Block"
+          },
           "cached_extraction": {
             "title": "Cached Extraction",
             "type": "boolean"
@@ -3447,7 +3458,8 @@
           "page_count",
           "file_sha256",
           "matching",
-          "policy_version"
+          "policy_version",
+          "approval_block"
         ],
         "title": "RunDetail",
         "type": "object"

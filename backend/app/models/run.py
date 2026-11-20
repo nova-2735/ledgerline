@@ -97,6 +97,7 @@ class RunDetail(RunSummary):
     file_sha256: str
     matching: MatchingView | None
     policy_version: str | None
+    approval_block: str | None  # why approve would be refused now; None when it's allowed
 
 
 class RunEvent(Model):

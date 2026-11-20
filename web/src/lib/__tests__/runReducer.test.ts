@@ -34,3 +34,21 @@ it('keeps earlier stages and resets the last five after a review', () => {
   expect(resumed.stages.slice(6).map(row => [row.name, row.status])).toEqual(stageOrder.slice(6).map(name => [name, 'pending']))
   expect(mergeRun(fixtures.details.S04, resumed, true)).toMatchObject({ decision: null, status: 'running' })
 })
+
+it('keeps every result of a rule that reports several checks', () => {
+  // Regression: live checks were keyed by rule_id, so the four D02 results (one per required
+  // field) collapsed into one and the run view counted fewer passed checks than the API.
+  const base = fixtures.details.S01.checks[0]
+  const required = ['invoice_number', 'invoice_date', 'total', 'supplier'].map((field): Schemas['CheckResult'] => ({
+    ...base, rule_id: 'D02_required', stage: 'validate_document', status: 'pass', evidence: { field },
+  }))
+  const at = { run_id: 25, ts: '2026-11-20T00:00:00Z', message: null }
+  const events: Schemas['RunEvent'][] = [
+    { ...at, seq: 1, type: 'stage.started', stage: 'validate_document', status: null, data: null },
+    { ...at, seq: 2, type: 'stage.completed', stage: 'validate_document', status: 'passed', data: { checks: required } },
+  ]
+  const progress = events.reduce(runReducer, initialProgress)
+  expect(Object.keys(progress.checks)).toHaveLength(4)
+  const merged = mergeRun({ ...fixtures.details.S01, checks: required }, progress, true)
+  expect(merged.checks.map(check => check.evidence.field)).toEqual(['invoice_number', 'invoice_date', 'total', 'supplier'])
+})

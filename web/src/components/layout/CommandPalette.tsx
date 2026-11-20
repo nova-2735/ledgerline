@@ -47,6 +47,16 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
     return () => clearTimeout(timer)
   }, [search])
 
+  // Run results land after the debounce, above "Search all runs", which cmdk has already
+  // selected by then; move the selection to the best run so Enter opens it.
+  const [selected, setSelected] = useState('')
+  const firstRun = query && query === search.trim() ? runs.data?.items[0]?.id : undefined
+  const [seenRun, setSeenRun] = useState<number>()
+  if (firstRun !== seenRun) {
+    setSeenRun(firstRun)
+    if (firstRun !== undefined && selected === 'search-all-runs') setSelected(`run-${firstRun}`)
+  }
+
   const matches = (text: string) => search.trim().toLowerCase().split(/\s+/).every(word => text.toLowerCase().includes(word))
   const go = (path: string) => { close(); void navigate(path) }
   const invoke = (id: Shortcut) => { close(); if (id === 'sidebar') onSidebar(); else invokeShortcut(id) }
@@ -55,7 +65,7 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
     (group === 'Review' && ['Run view', 'Queue', 'Dashboard'].includes(current)) || (id === 'peek' && current === 'Queue') ||
     (group === 'Lists' && ['Runs', 'Inbox', 'Queue', 'POs', 'Vendors'].includes(current) && (current !== 'Vendors' || id !== 'open')))
 
-  return <Command label="Search commands" shouldFilter={false} loop>
+  return <Command label="Search commands" shouldFilter={false} loop value={selected} onValueChange={setSelected}>
     <CommandInput value={search} onValueChange={setSearch} placeholder="Search pages, runs and actions…" aria-label="Search commands" />
     <CommandList>
       <CommandEmpty className="p-4 text-muted-foreground">No matching commands.</CommandEmpty>

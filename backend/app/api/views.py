@@ -11,6 +11,7 @@ from app.models.decision import Decision
 from app.models.extraction import InvoiceExtraction
 from app.models.run import RunDetail, RunSummary, StageState
 from app.orm import RunRow, VendorRow
+from app.pipeline.review import approval_block
 from app.pipeline.review import to_model as review_model
 
 
@@ -69,4 +70,5 @@ def run_detail(session: Session, run: RunRow) -> RunDetail:
         file_sha256=run.document.sha256,
         matching=MatchingView.model_validate(run.matching) if run.matching else None,
         policy_version=run.policy_version,
+        approval_block=approval_block(session, run),
     )

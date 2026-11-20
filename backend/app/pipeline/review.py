@@ -27,7 +27,7 @@ from app.models.run import ReviewAction
 from app.orm import ReviewActionRow, RunRow
 from app.reference.purchase_orders import get_po
 from app.reference.vendors import get_vendor
-from app.rules.base import Resolution, ReviewOverrides
+from app.rules.base import Resolution, ReviewOverrides, text_value
 
 from . import runner
 from .events import emit
@@ -188,6 +188,15 @@ def _approvable(session: Session, run: RunRow, checks: list[CheckResult]) -> Pos
             f"Can't approve: “{missing[0].title}”. Correct the field from the document, or "
             "return the invoice to the vendor.",
         )
+    if run.extraction is not None and run.vendor_id is None:
+        supplier = text_value(InvoiceExtraction.model_validate(run.extraction).supplier_name)
+        raise ReviewError(
+            409,
+            "posting_incomplete",
+            f"Can't approve: {supplier or 'the supplier'} isn't in the vendor master, so there's "
+            "no vendor record to pay. Procurement must onboard the vendor first; until then, "
+            "keep the invoice on hold or reject it.",
+        )
     result = _posting(session, run)
     blocked = [c for c in active if c.code == ReasonCode.POSTING_INCOMPLETE]
     if blocked or result.posting is None:
@@ -199,6 +208,17 @@ def _approvable(session: Session, run: RunRow, checks: list[CheckResult]) -> Pos
             "Correct the fields, or return or reject the invoice.",
         )
     return result.posting
+
+
+def approval_block(session: Session, run: RunRow) -> str | None:
+    """Why the review endpoint would refuse `approve` right now; None when it would accept it."""
+    if run.decision is None:
+        return None
+    try:
+        _approvable(session, run, [CheckResult.model_validate(c) for c in run.checks or []])
+    except ReviewError as exc:
+        return exc.detail
+    return None
 
 
 def _human_decision(

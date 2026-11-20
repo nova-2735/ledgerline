@@ -60,3 +60,4 @@
 - Container: the image seeds the demo world at build time into `/app/seed-data` (not a configurable setting); on startup, when the SQLite database in `DATA_DIR` is missing, that snapshot is copied in. With an explicit `DATABASE_URL` nothing is restored.
 - Container and Render default to `APP_TODAY=2026-11-20` so the fixed November 2026 demo world keeps its expected outcomes; leave it empty in `.env` for the real date.
 - The smoke test uses the demo inbox documents (S01, S06) through `/api/demo/runs`; against a live provider each fresh read is one model call (cached readings are reused).
+- VENDOR_NOT_FOUND keeps `approve` in its handoff actions (RULES template), but the API refuses it while no vendor record exists; `RunDetail.approval_block` carries the refusal so the UI shows Approve disabled with that reason.

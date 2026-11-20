@@ -3,7 +3,7 @@ import { dayOf } from '@/lib/runList'
 import { ApiError, type RequestOptions, type Schemas } from '@/api/client'
 import { outcomes, reasons, stages } from '@/lib/labels'
 import { fixtures } from './fixtures'
-import { mockReview } from './mockReview'
+import { mockApprovalBlock, mockReview } from './mockReview'
 import { scenarios } from './scenarios'
 
 type Run = Schemas['RunDetail']
@@ -24,7 +24,7 @@ function emptyDetail(run: Summary): Run {
   return {
     ...run, stages: [], checks: [], matching: null, extraction: null, decision: null,
     decision_history: [], review_actions: [], page_count: 1, file_sha256: '0'.repeat(64),
-    policy_version: fixtures.policy.version,
+    policy_version: fixtures.policy.version, approval_block: null,
   }
 }
 
@@ -125,7 +125,7 @@ function createRun(scenarioId?: string, fileName?: string, forceFresh = false) {
   const offset = started - Date.parse(template.created_at)
   const shift = (value: string | null) => value && iso(Date.parse(value) + offset)
   const decision = template.decision && { ...template.decision, decided_at: shift(template.decision.decided_at)! }
-  const detail: Run = {
+  const created: Omit<Run, 'approval_block'> = {
     ...template, id, display_id: `R-${String(id).padStart(4, '0')}`, created_at: iso(started),
     filename: fileName ?? template.filename, source: scenario ? 'demo' : 'upload', scenario_id: scenario ?? null,
     sender_name: scenario ? template.sender_name : null, sender_email: scenario ? template.sender_email : null,
@@ -137,6 +137,7 @@ function createRun(scenarioId?: string, fileName?: string, forceFresh = false) {
       detail: stage.name === 'extract_fields' ? { ...stage.detail, cached } : stage.detail,
     })),
   }
+  const detail: Run = { ...created, approval_block: mockApprovalBlock(created) }
   const replay = fixtures.events[scenario as keyof typeof fixtures.events]
   const events = replay ? replay.map(event => ({
     ...event, run_id: id, ts: shift(event.ts)!,

@@ -13,15 +13,26 @@ const resolved = {
   approve: [], reject: [], send_to_vendor: [], reopen: [],
 } satisfies Record<Request['action'], Schemas['ReasonCode'][]>
 
+/** Mirrors the API's approve guard for the cases the mock world reaches. */
+export function mockApprovalBlock(run: Omit<Run, 'approval_block'>): string | null {
+  if (!run.decision) return null
+  const critical = run.checks.find(check => check.severity === 'critical' && !check.resolved_by_review && (check.status === 'fail' || check.status === 'warn'))
+  if (critical) {
+    return `Can't approve while “${critical.title}” is unresolved. Resolve it first (for bank details: call the vendor on the number on file and record the call-back).`
+  }
+  if (!run.vendor_id) {
+    return `Can't approve: ${run.vendor_name ?? 'the supplier'} isn't in the vendor master, so there's no vendor record to pay. Procurement must onboard the vendor first; until then, keep the invoice on hold or reject it.`
+  }
+  return null
+}
+
 export function mockReview(run: Run, request: Request, beforeEvents: Event[], now = Date.now()) {
   const previous = run.decision
   if (!request.reviewer?.trim() || !request.note?.trim() || !previous || run.status === 'running') {
     throw new ApiError(422, 'invalid_review', 'Enter your name and a note for a run ready to review.')
   }
-  const critical = run.checks.some(check => check.severity === 'critical' && !check.resolved_by_review && (check.status === 'fail' || check.status === 'warn'))
-  if (request.action === 'approve' && critical) {
-    throw new ApiError(409, 'review_blocked', 'Resolve the critical check before approving payment.')
-  }
+  const blocked = mockApprovalBlock(run)
+  if (request.action === 'approve' && blocked) throw new ApiError(409, 'critical_unresolved', blocked)
   if (request.action === 'confirm_po' && !request.po_number?.trim()) {
     throw new ApiError(422, 'missing_po', 'Enter a purchase order number.')
   }
@@ -102,13 +113,14 @@ export function mockReview(run: Run, request: Request, beforeEvents: Event[], no
     return row
   })
   emit(status === 'completed' ? 'run.completed' : 'run.awaiting_review', 2040, decision.headline)
-  const detail: Run = {
+  const reviewed: Omit<Run, 'approval_block'> = {
     ...run, status, outcome, total, route, po_number: po, checks, stages: updatedStages,
     final_outcome: status === 'completed' ? outcome : null, primary_reason: decision.primary_reason,
     invoice_date: extraction?.invoice_date.value ?? run.invoice_date, invoice_number: extraction?.invoice_number.value ?? run.invoice_number,
     decision, decision_history: [...run.decision_history, decision], review_actions: [...run.review_actions, review],
     duration_ms: (run.duration_ms ?? 0) + 2040, extraction, matching: match,
   }
+  const detail: Run = { ...reviewed, approval_block: mockApprovalBlock(reviewed) }
   return { detail, events: eventLog }
 }
 

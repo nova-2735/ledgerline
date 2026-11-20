@@ -880,5 +880,6 @@
       }
     ]
   },
-  "policy_version": "v1"
+  "policy_version": "v1",
+  "approval_block": "Can't approve while “Bank account” is unresolved. Resolve it first (for bank details: call the vendor on the number on file and record the call-back)."
 }

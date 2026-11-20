@@ -1244,6 +1244,8 @@ export interface components {
         };
         /** RunDetail */
         RunDetail: {
+            /** Approval Block */
+            approval_block: string | null;
             /** Cached Extraction */
             cached_extraction: boolean;
             /** Checks */

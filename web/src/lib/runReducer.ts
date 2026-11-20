@@ -35,6 +35,16 @@ export const initialProgress: RunProgress = {
   status: null, resumedMarkers: [], review: null, checks: {},
 }
 
+/** One rule can report several results (one per required field, say), so key by occurrence. */
+export function keyedChecks(checks: Check[]): [string, Check][] {
+  const seen = new Map<string, number>()
+  return checks.map(check => {
+    const n = seen.get(check.rule_id) ?? 0
+    seen.set(check.rule_id, n + 1)
+    return [`${check.rule_id}#${n}`, check]
+  })
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -86,7 +96,7 @@ export function runReducer(state: RunProgress, event: Event): RunProgress {
     check_rule_ids: Array.isArray(ids) ? ids.filter(id => typeof id === 'string') : checks.map(check => check.rule_id),
   } : { ...pendingStage(name), status: 'running', started_at: ts }
   next.stages = state.stages.map(item => item.name === name ? updated : item)
-  if (checks.length) next.checks = { ...state.checks, ...Object.fromEntries(checks.map(check => [check.rule_id, check])) }
+  if (checks.length) next.checks = { ...state.checks, ...Object.fromEntries(keyedChecks(checks)) }
   if (state.lastLog?.stage === name) next.lastLog = null
   return next
 }
@@ -99,9 +109,9 @@ export function mergeRun(snapshot: Detail, progress: RunProgress, animate: boole
   const canShowDecision = lastDecision && (!lastResume || lastDecision.seq > lastResume.seq)
   const decision = canShowDecision ? (progress.decision ?? snapshot.decision) : null
   const allowed = new Set(progress.stages.filter(row => !['running', 'pending'].includes(row.status)).map(row => row.name))
-  const checks = new Map(snapshot.checks.filter(check => allowed.has(check.stage)).map(check => [check.rule_id, check]))
-  for (const check of Object.values(progress.checks)) {
-    if (!checks.get(check.rule_id)?.resolved_by_review || check.resolved_by_review) checks.set(check.rule_id, check)
+  const checks = new Map(keyedChecks(snapshot.checks).filter(([, check]) => allowed.has(check.stage)))
+  for (const [key, check] of Object.entries(progress.checks)) {
+    if (!checks.get(key)?.resolved_by_review || check.resolved_by_review) checks.set(key, check)
   }
   const mergedStages = progress.stages.map(stage => {
     const saved = snapshot.stages.find(row => row.name === stage.name)
