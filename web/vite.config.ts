@@ -25,6 +25,18 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/, priority: 3 },
+            { name: 'router', test: /node_modules[\\/]react-router/ , priority: 2 },
+            { name: 'query', test: /node_modules[\\/]@tanstack[\\/]/, priority: 2 },
+            { name: 'primitives', test: /node_modules[\\/](?:@radix-ui|radix-ui|cmdk)[\\/]/ },
+          ],
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

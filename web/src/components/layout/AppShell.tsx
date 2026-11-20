@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, setAccessCode } from '@/api/client'
 import { isAccessError, queryKeys, useHealth, useQueue, useRuns } from '@/api/hooks'
-import { ErrorState } from '@/components/EmptyState'
+import { ErrorState, LoadingState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -114,7 +114,7 @@ export function AppShell() {
     <div className="flex min-h-0 min-w-0 flex-col">
       <TopBar actionsRef={setActionTarget} />
       <main id="main" className="min-h-0 flex-1 overflow-auto">
-        <RunConnection.Provider value={setRunLive}><PageActionsTarget.Provider value={actionTarget}><Outlet /></PageActionsTarget.Provider></RunConnection.Provider>
+        <RunConnection.Provider value={setRunLive}><PageActionsTarget.Provider value={actionTarget}><Suspense fallback={<LoadingState label="Loading page" />}><Outlet /></Suspense></PageActionsTarget.Provider></RunConnection.Provider>
       </main>
     </div>
     <StatusBar health={health.data?.health} ms={health.data?.ms} error={health.isError} count={runs.data?.total}
