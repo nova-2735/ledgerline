@@ -1,5 +1,24 @@
 # Assumptions
 
+## Business and scope
+
+- A1. The buyer is Kestrel Foods Pvt. Ltd., a fictional mid-size food manufacturer in Bengaluru (Karnataka, GST state code 29): one GSTIN, one legal entity, INR only.
+- A2. Invoices arrive by email as PDFs. In this build they arrive by upload or from the demo inbox; there is no real email intake.
+- A3. The "procurement system" is a set of spreadsheet exports: vendor master, PO lines, goods receipts (GRNs) and the ledger of invoices already processed. They are generated as CSV and loaded into SQLite by the seed step.
+- A4. Goods POs use a 3-way match (invoice ↔ PO ↔ GRN); service and subscription POs use a 2-way match.
+- A5. Default tolerances: unit price ±2%; header amount the lesser of 2% or ₹2,500; round-off up to ₹1; charges without a PO line up to ₹500 allowed as a note; quantity tolerance 0.
+- A6. Auto-approval limit is ₹5,00,000 including tax; above it a controller approves even when everything matches.
+- A7. GST slabs are 5% / 18% (GST 2.0, effective 22 Sep 2025). Intra-state supply → CGST + SGST; inter-state → IGST. Place of supply is the buyer's state (29) for all demo POs.
+- A8. An invoice counts against a PO's billed balance only once it is approved (automatically or by a person).
+- A9. A PO reference that isn't printed may be inferred, but the default policy asks a person to confirm it with one click (configurable).
+- A10. A changed bank account on an invoice is never auto-approved and never answered by email to the address on the invoice; it needs a call-back to the number on file.
+- A11. "Return to vendor" means the document is defective and must be re-issued; "Reject" means it must not be paid (duplicate, blocked vendor, not an invoice).
+- A12. Payments are out of scope; "Approve" produces a posting payload (what would go to the ERP).
+- A13. Dates in the demo world are fixed around November 2026; tests and the demo use `APP_TODAY=2026-11-20`.
+- A14. Free-tier model quotas are tight, so model readings are cached by file hash and cached runs are labelled.
+
+## Added during the build
+
 - "Today" is the Asia/Kolkata business date; with `APP_TODAY` set, `clock.now()` keeps the real time of day but pins the date to `APP_TODAY` (IST), returned in UTC.
 - Reader output shapes (`Word`, `PageRead`, `DocumentRead`) live in `backend/app/models/extraction.py`; `ingest/reader.py` produces them.
 - Money fields (amounts, unit prices, totals, tax) are 2 dp `Money`; quantities, rates and percentages are exact decimals; both travel as JSON strings and floats are rejected.
@@ -61,3 +80,5 @@
 - Container and Render default to `APP_TODAY=2026-11-20` so the fixed November 2026 demo world keeps its expected outcomes; leave it empty in `.env` for the real date.
 - The smoke test uses the demo inbox documents (S01, S06) through `/api/demo/runs`; against a live provider each fresh read is one model call (cached readings are reused).
 - VENDOR_NOT_FOUND keeps `approve` in its handoff actions (RULES template), but the API refuses it while no vendor record exists; `RunDetail.approval_block` carries the refusal so the UI shows Approve disabled with that reason.
+- Dashboard KPIs show "No prior data" instead of a change when the previous period has no runs or the previous value is 0; the "All" period has no previous period and shows a dash.
+- README uses the dashboard and inbox screenshots; no live run view screenshot was captured, so the live run view is described in text.
