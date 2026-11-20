@@ -26,8 +26,8 @@ export function StageRow({ stage, index, expanded, toggle, checks, log, onHighli
   const message = running ? log ?? 'Working…' : stage.summary
   return <div className="border-b" data-stage={stage.name} data-status={stage.status}>
     <button type="button" id={'stage-toggle-' + stage.name} aria-expanded={expanded} aria-controls={'stage-detail-' + stage.name} onClick={toggle}
-      className={cn('flex min-h-9 w-full items-center gap-2 border-l-2 border-l-transparent px-2 text-left hover:bg-muted', running && 'border-l-primary bg-accent hover:bg-accent', expanded && !running && 'bg-muted')}>
-      <span className="identifier shrink-0 text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+      className={cn('flex h-11 w-full items-center gap-2 border-l-2 border-l-transparent px-2 text-left hover:bg-muted', running && 'border-l-primary bg-accent hover:bg-accent', expanded && !running && 'bg-muted')}>
+      <span className="text-meta shrink-0 text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
       <Icon aria-hidden="true" className={cn('size-3.5 shrink-0', tone, running && 'motion-safe:animate-spin')} />
       <span className="min-w-0 flex-1 py-1">
         <span className="block truncate text-body font-medium" title={stages[stage.name]}>{stages[stage.name]}<span className="sr-only"> · {status}</span></span>

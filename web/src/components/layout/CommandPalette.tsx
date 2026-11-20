@@ -74,13 +74,13 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
       <CommandGroup heading="Runs">{(query === search.trim() ? runs.data?.items : [])?.map(run =>
         <CommandItem key={run.id} value={`run-${run.id}`} onSelect={() => go(`/runs/${run.id}`)}>
           <FileText className="size-3.5 text-muted-foreground" aria-hidden="true" /><span className="identifier">{run.display_id}</span>
-          <span className="truncate">{run.vendor_name ?? run.filename}</span><span className="identifier ml-auto truncate text-muted-foreground">{run.invoice_number}</span><Kbd>Enter</Kbd>
+          <span title={run.vendor_name ?? run.filename} className="truncate">{run.vendor_name ?? run.filename}</span><span title={run.invoice_number ?? undefined} className="identifier ml-auto truncate text-muted-foreground">{run.invoice_number}</span><Kbd>Enter</Kbd>
         </CommandItem>)}
         {search.trim() && <CommandItem value="search-all-runs" onSelect={() => go(`/runs?q=${encodeURIComponent(search.trim())}`)}><Search className="size-3.5" />Search all runs<Kbd className="ml-auto">Enter</Kbd></CommandItem>}
       </CommandGroup>
       <CommandGroup heading="Process demo invoice">{inbox.data?.filter(doc => matches(`${doc.doc_id} ${doc.title} ${doc.sender_name} ${doc.subject}`)).map(doc =>
         <CommandItem key={doc.doc_id} value={`process-${doc.doc_id}`} disabled={process.isPending} onSelect={() => process.mutate(doc.doc_id)}>
-          <span className="identifier text-muted-foreground">{doc.doc_id}</span><span className="truncate">{doc.title}</span><Kbd className="ml-auto">Enter</Kbd>
+          <span className="identifier text-muted-foreground">{doc.doc_id}</span><span title={doc.title} className="truncate">{doc.title}</span><Kbd className="ml-auto">Enter</Kbd>
         </CommandItem>)}</CommandGroup>
       <CommandGroup heading="Actions">
         {matches('Reset demo data') && <CommandItem value="reset" onSelect={() => { close(); onReset() }}>Reset demo data<Kbd className="ml-auto">Enter</Kbd></CommandItem>}
@@ -95,7 +95,7 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
     <div className="flex gap-4 border-t px-3 py-2 text-meta text-muted-foreground">
       <span className="flex items-center gap-1"><ArrowUp className="size-3" /><ArrowDown className="size-3" /> Navigate</span>
       <span className="flex items-center gap-1"><CornerDownLeft className="size-3" /> Select</span>
-      <span className="ml-auto flex items-center gap-1"><Kbd>Esc</Kbd> Close</span>
+      <button type="button" className="ml-auto flex items-center gap-1 hover:text-primary" onClick={close}><Kbd>Esc</Kbd> Close</button>
     </div>
   </Command>
 }

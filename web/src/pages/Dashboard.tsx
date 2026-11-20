@@ -241,7 +241,7 @@ export function Dashboard() {
                   <td className="px-2 text-right text-meta whitespace-nowrap text-muted-foreground">{age(run.age_hours)}</td>
                   <td className="px-2 py-1 text-meta text-muted-foreground"><span className="line-clamp-2" title={run.question}>{run.question}</span></td>
                   <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" onClick={() => openReview(run.id, action)}>
-                    <span className="truncate">{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
+                    <span className="truncate" title={action ? actionLabel(action) : 'Review'}>{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
                   </Button></td>
                 </tr>
               })}</tbody>

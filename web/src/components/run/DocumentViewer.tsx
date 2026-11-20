@@ -5,14 +5,14 @@ import { runPageUrl, USE_MOCKS, type Schemas } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
-import { fieldKeys, fieldLabels, type FieldKey } from '@/lib/invoiceFields'
+import { fieldKeys, fieldLabels, type FieldKey, type InvoiceEvidence } from '@/lib/invoiceFields'
 import { useShortcuts } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { DocumentToolbar, type Zoom } from './DocumentToolbar'
 import { HighlightLayer } from './HighlightLayer'
 
 export function DocumentViewer({ run, active, evidence, ocrAvailable, original }: {
-  evidence?: { field: FieldKey } | null; run: Schemas['RunDetail']; active: FieldKey | null; ocrAvailable?: boolean; original: () => void
+  evidence?: InvoiceEvidence | null; run: Schemas['RunDetail']; active: FieldKey | null; ocrAvailable?: boolean; original: () => void
 }) {
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState<Zoom>('Fit')
@@ -29,16 +29,17 @@ export function DocumentViewer({ run, active, evidence, ocrAvailable, original }
     staleTime: Infinity,
   })
   const extraction = run.extraction
-  const highlightedPage = active && extraction ? extraction[active].bbox[0]?.page : undefined
+  const highlightedPage = active && extraction ? extraction[active].bbox[0]?.page : evidence?.bbox[0]?.page
   useEffect(() => { if (highlightedPage) setPage(highlightedPage) }, [highlightedPage])
   useEffect(() => {
     if (evidence && !url.isPlaceholderData) {
-      document.querySelector('[data-highlight="' + evidence.field + '"]')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+      document.querySelector('[data-highlight="' + evidence.id + '"]')?.scrollIntoView({ block: 'center', inline: 'nearest' })
     }
   }, [evidence, url.data, url.isPlaceholderData])
-  const highlights = extraction ? fieldKeys.map(id => ({
+  const highlights: InvoiceEvidence[] = extraction ? fieldKeys.map(id => ({
     id, label: fieldLabels[id], level: extraction[id].level, bbox: extraction[id].bbox,
   })) : []
+  if (evidence && !highlights.some(item => item.id === evidence.id)) highlights.push(evidence)
   const readDetail = run.stages.find(row => row.name === 'read_document')?.detail
   const pageDetails = Array.isArray(readDetail?.pages) ? readDetail.pages[page - 1] as { kind?: string; ocr_used?: boolean } | undefined : undefined
   const scanned = pageDetails?.kind === 'scanned' || run.doc_kind === 'scanned'
@@ -66,7 +67,7 @@ export function DocumentViewer({ run, active, evidence, ocrAvailable, original }
             url.data && <figure className={cn('relative mx-auto border bg-white', zoom === 'Fit' && 'w-full max-w-[820px]',
               zoom === '100%' && 'w-[820px] max-w-none', zoom === '150%' && 'w-[1230px] max-w-none')}>
               <img src={url.data} alt={'Page ' + page + ' of ' + run.filename} className="block h-auto w-full" onError={() => setErrorSrc(url.data)} />
-              {!url.isPlaceholderData && <HighlightLayer highlights={highlights} page={page} active={active} showAll={showAll} />}
+              {!url.isPlaceholderData && <HighlightLayer highlights={highlights} page={page} active={active ?? evidence?.id ?? null} showAll={showAll} />}
             </figure>}
     </div>
   </section>

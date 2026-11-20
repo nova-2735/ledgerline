@@ -177,22 +177,23 @@ export function Inbox() {
           {loading ? <LoadingState label="Loading the inbox" /> : error ?
             <ErrorState title="Could not load the inbox" error={error} retry={() => void (folder === 'uploaded' ? runs.refetch() : messages.refetch())} /> :
             !filtered.length ? <EmptyState title={folder === 'uploaded' ? 'No uploaded invoices' : 'No messages in this folder'} /> :
+              <><div aria-hidden="true" className="sticky top-0 z-10 grid h-8 grid-cols-[8px_minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.7fr)_90px] items-center gap-2 border-b bg-muted px-3 text-meta text-muted-foreground"><span /><span>Sender</span><span>Subject</span><span>Tags</span><span className="text-right">Amount</span></div>
               <ul className="divide-y">
                 {filtered.map(item => {
                   const outcome = item.run && effectiveOutcome(item.run)
                   const active = item === entry
                   return <li key={item.key}><button type="button" id={'mail-' + item.key} data-testid={'mail-' + item.key} onClick={() => setSelected(item.key)} aria-pressed={active}
-                    className={cn('grid h-10 w-full min-w-0 grid-cols-[8px_minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.7fr)_minmax(72px,auto)] items-center gap-2 px-3 text-left hover:bg-muted', active && 'bg-accent hover:bg-accent')}>
+                    className={cn('grid h-10 w-full min-w-0 grid-cols-[8px_minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.7fr)_90px] items-center gap-2 px-3 text-left hover:bg-muted', active && 'bg-accent hover:bg-accent')}>
                     <StatusSquare outcome={outcome} className={!outcome && (item.run || item.doc?.processed_run_ids.length) ? 'bg-muted-foreground' : 'border-muted-foreground'} />
                     <span className="truncate font-medium" title={item.doc?.sender_name ?? item.run?.vendor_name ?? undefined}>{item.doc?.sender_name ?? item.run?.vendor_name ?? 'Uploaded PDF'}</span>
                     <span className="truncate text-meta" title={item.doc?.subject ?? item.run?.filename}>{item.doc?.subject ?? item.run?.filename}</span>
                     <span className="flex min-w-0 items-center gap-1 overflow-hidden">
-                      {shownTags(item.doc).filter(tag => tag !== 'Digital').slice(0, 2).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
+                      {shownTags(item.doc).filter(tag => tag !== 'Digital').slice(0, 2).map((tag, index) => <span key={tag} className={cn("truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground", index > 0 && "hidden min-[100rem]:inline")} title={tag}>{tag}</span>)}
                     </span>
                     <span className="whitespace-nowrap text-right text-meta tabular-nums" title={item.run?.total ? inr(item.run.total) : 'Amount available after processing'}>{inr(item.run?.total)}</span>
                   </button></li>
                 })}
-              </ul>}
+              </ul></>}
         </div>
       </section>
       <section ref={preview} tabIndex={-1} aria-label="Message preview" className="min-h-0 min-w-0 overflow-auto bg-card">

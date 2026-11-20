@@ -4,7 +4,7 @@ import type { Schemas } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
 import { OutcomeBadge, outcomeColors } from '@/components/OutcomeBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import type { FieldKey } from '@/lib/invoiceFields'
+import type { FieldKey, InvoiceEvidence } from '@/lib/invoiceFields'
 import { DecisionHistory } from './DecisionHistory'
 import { DraftCard } from './DraftCard'
 import { NextStepCard } from './NextStepCard'
@@ -14,7 +14,7 @@ import { BlockedApproval } from './ReviewActionBar'
 import { approvalBlock } from './reviewActions'
 
 export function DecisionPanel({ run, onAction, onHighlight, onEvidence }: {
-  onEvidence?: (field: FieldKey) => void; run: Schemas['RunDetail']; onAction: (action: Schemas['ActionType']) => void; onHighlight: (field: FieldKey | null) => void
+  onEvidence?: (target: InvoiceEvidence) => void; run: Schemas['RunDetail']; onAction: (action: Schemas['ActionType']) => void; onHighlight: (field: FieldKey | null) => void
 }) {
   const decision = run.decision
   if (!decision) return <EmptyState title={run.status === 'failed' ? 'This run ended without a decision' : 'Decision pending'}>
@@ -25,7 +25,7 @@ export function DecisionPanel({ run, onAction, onHighlight, onEvidence }: {
   const duplicate = run.checks.find(check => check.code?.startsWith('DUPLICATE_') && typeof check.evidence.run_id === 'number')
   const draft = decision.explanation.vendor_message
   return <div className="space-y-3">
-    <section className="border border-l-[3px] bg-card px-3 py-2.5" style={{ borderLeftColor: outcomeColors[decision.outcome] }}>
+    <section data-testid="run-decision" data-outcome={decision.outcome} data-version={decision.version} className="border border-l-[3px] bg-card px-3 py-2.5" style={{ borderLeftColor: outcomeColors[decision.outcome] }}>
       <OutcomeBadge outcome={decision.outcome} />
       <h3 className="mt-1 text-title">{decision.headline}</h3>
     </section>

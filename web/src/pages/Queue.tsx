@@ -4,7 +4,7 @@ import { Search } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type Schemas } from '@/api/client'
 import { queryKeys, useQueue } from '@/api/hooks'
-import { ErrorState, LoadingState } from '@/components/EmptyState'
+import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
 import { PeekDrawer } from '@/components/PeekDrawer'
 import { StatusSquare } from '@/components/OutcomeBadge'
 import { RowKeys } from '@/components/RowKeys'
@@ -144,7 +144,7 @@ export function Queue() {
         <div className="min-h-0 flex-1 overflow-auto">
           {query.isPending ? <LoadingState label="Loading the review queue" /> :
             query.isError ? <ErrorState title="Could not load the review queue" error={query.error} retry={() => void query.refetch()} /> :
-            !rows.length ? <p className="p-3 text-body text-muted-foreground">Nothing waiting. <Link className="text-link" to="/runs">View runs</Link></p> :
+            !rows.length ? <EmptyState title="Nothing waiting"><Link className="text-link" to="/runs">View runs</Link></EmptyState> :
             <table aria-label="Invoices awaiting review" className="w-full min-w-[710px] table-fixed">
               <colgroup><col className="w-8" /><col className="w-[160px]" /><col className="w-[114px]" /><col className="w-[52px]" /><col /><col className="w-[149px]" /><col className="w-[77px]" /></colgroup>
               <thead className="table-head"><tr>
@@ -171,7 +171,7 @@ export function Queue() {
                     <td className="px-2">
                       {working ? <span role="status" className="text-meta text-muted-foreground">Applying review…</span> :
                         primary ? <Button variant="outline" size="sm" className="max-w-full" onClick={() => { setActiveId(run.id); openAction(run.id, primary) }}>
-                          <span className="truncate">{actionLabel(primary)}</span>{key && <ShortcutHint id={key} />}
+                          <span className="truncate" title={actionLabel(primary)}>{actionLabel(primary)}</span>{key && <ShortcutHint id={key} />}
                         </Button> : detail?.isError ? <Button variant="outline" size="sm" onClick={() => void detail.refetch()}>Retry actions</Button> :
                           <Button asChild variant="outline" size="sm"><Link to={'/runs/' + run.id}>Review run</Link></Button>}
                     </td>
