@@ -19,7 +19,12 @@ export function isAccessError(error: unknown): boolean {
 
 export const useHealth = () => useQuery({
   queryKey: queryKeys.health,
-  queryFn: ({ signal }) => api.health(signal),
+  queryFn: async ({ signal }) => {
+    const start = performance.now()
+    const health = await api.health(signal)
+    return { health, ms: Math.round(performance.now() - start) }
+  },
+  refetchInterval: 30_000,
   staleTime: 30_000,
 })
 

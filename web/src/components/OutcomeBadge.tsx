@@ -1,4 +1,3 @@
-import { CheckCircle2, Clock3, CornerUpLeft, XCircle } from 'lucide-react'
 import type { Schemas } from '@/api/client'
 import { outcomes } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -7,15 +6,14 @@ export const outcomeColors = {
   APPROVE: '#059669', HOLD: '#d97706', RETURN: '#0284c7', REJECT: '#e11d48',
 } satisfies Record<Schemas['Outcome'], string>
 
-const styles = {
-  APPROVE: [CheckCircle2, 'bg-emerald-50 text-emerald-800'],
-  HOLD: [Clock3, 'bg-amber-50 text-amber-900'],
-  RETURN: [CornerUpLeft, 'bg-sky-50 text-sky-800'],
-  REJECT: [XCircle, 'bg-rose-50 text-rose-800'],
-} as const
+const tones = { APPROVE: 'text-approve', HOLD: 'text-hold', RETURN: 'text-return', REJECT: 'text-reject' }
+
+export function StatusSquare({ outcome, className }: { outcome?: Schemas['Outcome'] | null; className?: string }) {
+  return <span aria-hidden="true" className={cn('inline-block size-2 shrink-0', !outcome && 'border border-input', className)}
+    style={outcome ? { backgroundColor: outcomeColors[outcome] } : undefined} />
+}
 
 export function OutcomeBadge({ outcome }: { outcome: Schemas['Outcome'] | null | undefined }) {
-  if (!outcome) return <span className="text-muted-foreground">—</span>
-  const [Icon, color] = styles[outcome]
-  return <span className={cn('status-chip', color)}><Icon aria-hidden="true" />{outcomes[outcome]}</span>
+  if (!outcome) return <span className="status-chip text-muted-foreground"><StatusSquare />Pending</span>
+  return <span className={cn('status-chip', tones[outcome])}><StatusSquare outcome={outcome} />{outcomes[outcome]}</span>
 }

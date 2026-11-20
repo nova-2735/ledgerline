@@ -31,10 +31,9 @@ export function Dashboard() {
   const runs = useRuns({ outcome: outcome === 'all' ? null : outcome, status: status || null, q: search.trim(), offset, limit: pageSize }, refreshing)
   const kpis = stats.data?.kpis
 
-  return <div className="space-y-4">
+  return <div className="page-padding space-y-4">
     <header className="flex flex-wrap items-end justify-between gap-3 pb-1">
       <div>
-        <h1 className="page-title">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">Track invoice decisions and see where your team needs to step in.</p>
       </div>
       <div className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-medium text-slate-700">

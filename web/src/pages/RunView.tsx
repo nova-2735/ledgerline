@@ -139,7 +139,7 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
     {original.isError && <ErrorState title="Could not open the invoice PDF" error={original.error} retry={() => original.mutate()} />}
     <div className="grid items-start gap-3 md:grid-cols-[minmax(270px,1fr)_minmax(0,2fr)] xl:grid-cols-[320px_minmax(0,1fr)_440px]">
       <StageTimeline run={run} progress={progress} onHighlight={setField} />
-      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.ocr_available} />
+      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.health.ocr_available} />
       <section aria-label="Decision and evidence" className="panel hidden min-w-0 overflow-hidden xl:block">{tabs()}</section>
     </div>
     <div className="sticky bottom-3 flex justify-end xl:hidden">

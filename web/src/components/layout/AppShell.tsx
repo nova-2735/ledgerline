@@ -1,37 +1,56 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Activity, CircleAlert, ClipboardList, FileStack, LayoutDashboard, ListChecks, Mail, MoreHorizontal, RotateCcw, SlidersHorizontal, Users } from 'lucide-react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, setAccessCode, type Schemas } from '@/api/client'
-import { isAccessError, queryKeys, useHealth, useQueue } from '@/api/hooks'
+import { api, setAccessCode } from '@/api/client'
+import { isAccessError, queryKeys, useHealth, useQueue, useRun, useRuns } from '@/api/hooks'
 import { ErrorState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { AppSidebar } from './AppSidebar'
+import { CommandPalette } from './CommandPalette'
+import { PageActionsTarget } from './PageActions'
+import { ShortcutSheet } from './ShortcutSheet'
+import { StatusBar, healthLabel } from './StatusBar'
+import { TopBar } from './TopBar'
+import { destinations, useShortcuts, type Shortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 const accessKey = 'ledgerline-access'
-const navigation = [
-  ['/', 'Dashboard', LayoutDashboard], ['/inbox', 'Inbox', Mail], ['/queue', 'Review queue', ListChecks],
-  ['/purchase-orders', 'Purchase orders', ClipboardList], ['/vendors', 'Vendors', Users], ['/policy', 'Policy', SlidersHorizontal],
-] as const
 
 export function restoreAccessCode() {
   try { setAccessCode(sessionStorage.getItem(accessKey)) } catch { /* Storage may be unavailable. */ }
 }
 
-function healthLabel(health: Schemas['HealthResponse']) {
-  if (health.llm_provider === 'fake') return 'Offline reader (test data)'
-  const provider = health.llm_provider === 'gemini' ? 'Gemini' : health.llm_provider
-  return `${provider} · ${health.llm_model} · OCR ${health.ocr_available ? 'on' : 'off'}`
+function readSetting(key: string) {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+
+function saveSetting(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* Storage may be unavailable. */ }
 }
 
 export function AppShell() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const health = useHealth()
+  const [dark, setDark] = useState(() => readSetting('ledgerline-theme') === 'dark')
+  const [collapsed, setCollapsed] = useState(() => readSetting('ledgerline-sidebar') === 'rail' || window.innerWidth < 760)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [actionTarget, setActionTarget] = useState<HTMLDivElement | null>(null)
+  const runRoute = useMatch('/runs/:id')
+  const activeRun = useRun(Number(runRoute?.params.id))
+  const runs = useRuns({ limit: 1 })
+  const toggleTheme = () => setDark(value => !value)
+  const toggleSidebar = () => setCollapsed(value => !value)
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark)
+    saveSetting('ledgerline-theme', dark ? 'dark' : 'light')
+  }, [dark])
+  useEffect(() => saveSetting('ledgerline-sidebar', collapsed ? 'rail' : 'expanded'), [collapsed])
+
   const [gate, setGate] = useState(false)
   const [code, setCode] = useState('')
   const [dialog, setDialog] = useState<'health' | 'reset' | null>(null)
@@ -74,47 +93,35 @@ export function AppShell() {
     },
   })
 
+  const go = Object.fromEntries(destinations.map(({ id, path }) => [id, () => void navigate(path)])) as Partial<Record<Shortcut, () => void>>
+  useShortcuts({
+    ...go,
+    palette: () => setPaletteOpen(true),
+    help: () => setShortcutsOpen(true),
+    theme: toggleTheme,
+    ...(runRoute ? {} : { sidebar: toggleSidebar }),
+  }, !gate && dialog === null)
+  const openReset = () => { reset.reset(); setDialog('reset') }
+
   function submitCode(event: FormEvent) {
     event.preventDefault()
     if (code.trim()) unlock.mutate(code.trim())
   }
 
-  return <div className="min-h-screen">
-    <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:bg-white focus:p-2">Skip to content</a>
-    <header className="border-b bg-white">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 px-4 pt-2 sm:px-6 xl:flex-nowrap xl:pt-0">
-        <Link to="/" className="order-1 flex shrink-0 items-center gap-2.5 py-2">
-          <span className="grid size-9 place-items-center rounded-lg bg-indigo-600 text-white"><FileStack aria-hidden="true" className="size-[19px]" /></span>
-          <span><span className="block text-base leading-5 font-semibold tracking-tight">Ledgerline</span>
-            <span className="block text-[11px] leading-4 font-medium text-muted-foreground">Invoice → decision</span></span>
-        </Link>
-        <nav aria-label="Main navigation" className="order-3 flex w-full min-w-0 shrink-0 items-stretch gap-1 overflow-x-auto xl:order-2 xl:w-auto xl:shrink xl:flex-1">
-          {navigation.map(([to, label, Icon]) => <NavLink to={to} key={to}
-            className={({ isActive }) => cn('flex min-h-12 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2 text-sm font-medium xl:min-h-16',
-              isActive ? 'border-indigo-600 text-indigo-800' : 'border-transparent text-slate-600 hover:text-slate-950')}>
-            <Icon aria-hidden="true" className="size-4" />{label}
-            {to === '/queue' && count > 0 && <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs leading-none text-indigo-800 tabular-nums">{count}</span>}
-          </NavLink>)}
-        </nav>
-        <div className="order-2 ml-auto flex shrink-0 items-center gap-2 xl:order-3">
-          <button type="button" onClick={() => setDialog('health')} className={cn('status-chip border py-1 text-xs',
-            health.isError ? 'border-rose-200 bg-rose-50 text-rose-800' :
-              health.data?.llm_provider === 'fake' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-700')}>
-            {health.isError ? <CircleAlert aria-hidden="true" /> : <Activity aria-hidden="true" />}
-            <span className="hidden sm:inline">{health.data ? healthLabel(health.data) : health.isError ? 'API unavailable' : 'Checking API'}</span>
-            <span className="sr-only sm:hidden">API health</span>
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="Workspace menu"><MoreHorizontal /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => { reset.reset(); setDialog('reset') }}><RotateCcw />Reset demo data</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setDialog('health')}><Activity />API health</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </header>
-    <main id="main" className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
+  return <div className={cn('grid h-dvh overflow-hidden grid-rows-[minmax(0,1fr)_28px]', collapsed ? 'grid-cols-[52px_minmax(0,1fr)]' : 'grid-cols-[220px_minmax(0,1fr)]')}>
+    <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:bg-card focus:p-2">Skip to content</a>
+    <AppSidebar collapsed={collapsed} count={count} toggle={toggleSidebar} openPalette={() => setPaletteOpen(true)} />
+    <div className="flex min-h-0 min-w-0 flex-col">
+      <TopBar actionsRef={setActionTarget} />
+      <main id="main" className="min-h-0 flex-1 overflow-auto">
+        <PageActionsTarget.Provider value={actionTarget}><Outlet /></PageActionsTarget.Provider>
+      </main>
+    </div>
+    <StatusBar health={health.data?.health} ms={health.data?.ms} error={health.isError} count={runs.data?.total}
+      dark={dark} live={['running', 'queued'].includes(activeRun.data?.status ?? '')} onHealth={() => setDialog('health')}
+      onTheme={toggleTheme} onHelp={() => setShortcutsOpen(true)} />
+    <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onReset={openReset} onSidebar={toggleSidebar} />
+    <ShortcutSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     <Dialog open={gate} onOpenChange={() => undefined}>
       <DialogContent showCloseButton={false} onEscapeKeyDown={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
         <DialogHeader><DialogTitle>Enter demo access code</DialogTitle><DialogDescription>Use the access code for this Ledgerline workspace.</DialogDescription></DialogHeader>
@@ -137,9 +144,9 @@ export function AppShell() {
         </> : <>
           <DialogHeader><DialogTitle>API health</DialogTitle><DialogDescription>Connection and invoice reader status.</DialogDescription></DialogHeader>
           {health.data && <dl className="grid grid-cols-[auto_1fr] gap-3 text-sm">
-            <dt className="text-muted-foreground">Connection</dt><dd>{health.data.status === 'ok' ? 'Available' : health.data.status}</dd>
-            <dt className="text-muted-foreground">Invoice reader</dt><dd>{healthLabel(health.data)}</dd>
-            <dt className="text-muted-foreground">Database</dt><dd>{health.data.db === 'ok' ? 'Available' : health.data.db}</dd>
+            <dt className="text-muted-foreground">Connection</dt><dd>{health.data.health.status === 'ok' ? 'Available' : health.data.health.status}</dd>
+            <dt className="text-muted-foreground">Invoice reader</dt><dd>{healthLabel(health.data.health)}</dd>
+            <dt className="text-muted-foreground">Database</dt><dd>{health.data.health.db === 'ok' ? 'Available' : health.data.health.db}</dd>
           </dl>}
           {health.isError && <ErrorState title="API health is unavailable" error={health.error} retry={() => void health.refetch()} />}
           {health.isPending && <p role="status" className="text-sm text-muted-foreground">Checking connection…</p>}
