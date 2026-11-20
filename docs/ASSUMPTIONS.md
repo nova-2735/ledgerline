@@ -50,3 +50,5 @@
 - Policy preview: "before" is recomputed under the current policy rather than read from the stored decision, so only the policy change shows; duplicate checks compare against earlier runs only.
 - Policy: `PUT /policy` saves overrides to `DATA_DIR/policy_overrides.json`; new runs and `GET /policy` use the YAML plus saved overrides.
 - Decision: a check resolved by review can leave a follow-up note on the decision (bank change → update the vendor master via change control before the payment run).
+- Eval: runs use explanation polish off, so the live eval measures the model's reading and the deterministic decision only. Truth for subtotal, buyer GSTIN and PO reference is what is printed (normalised); every other field uses the generator's numbers. A 429 that survives the client's own retries makes the harness wait 30 / 60 / 120 s and re-run the scenario; reaching `MAX_LIVE_LLM_CALLS_PER_HOUR` stops the run and marks the rest as not run.
+- Eval report: kept to the verdict, the decision table (with the first difference per scenario) and field accuracy; latency, tokens and retries are in the `.json` next to it.

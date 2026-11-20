@@ -71,10 +71,10 @@ extract:
 	$(UV_RUN) python -m app.cli extract "$(abspath $(FILE))" $(ARGS)
 
 eval:
-	@echo "make eval: available after B12"
+	$(UV_RUN) python -m app.eval --provider fake --gate --out "$(CURDIR)/reports/eval_fake.md"
 
 eval-live:
-	@echo "make eval-live: available after B12"
+	$(UV_RUN) python -m app.eval --provider gemini --force-fresh --out "$(CURDIR)/reports/eval_live.md"
 
 docker-build:
 	@echo "make docker-build: available after B13"
