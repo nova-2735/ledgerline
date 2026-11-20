@@ -6,7 +6,7 @@ export function DecisionHistory({ decisions, reviews }: { decisions: Schemas['De
   if (!decisions.length) return null
   return <section className="space-y-2">
     <h3 className="section-title">Decision history</h3>
-    <ol className="divide-y rounded-lg border">
+    <ol className="divide-y rounded-sm border">
       {decisions.map(decision => {
         const review = reviews.find(action => action.resulting_decision_version === decision.version)
         return <li key={decision.version} className="space-y-1 p-2.5">

@@ -1,58 +1,69 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Search, ShieldX } from 'lucide-react'
 import { api } from '@/api/client'
 import { queryKeys } from '@/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
-import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { PageActions } from '@/components/layout/PageActions'
+import { RowKeys } from '@/components/RowKeys'
+import { SearchControl } from '@/components/SearchControl'
 import { maskedBank } from '@/lib/format'
+import { rowIndex, useShortcuts } from '@/lib/shortcuts'
+import { cn } from '@/lib/utils'
 
 export function Vendors() {
   const [search, setSearch] = useState('')
+  const [active, setActive] = useState('')
+  const input = useRef<HTMLInputElement>(null)
   const vendors = useQuery({ queryKey: queryKeys.vendors, queryFn: ({ signal }) => api.vendors(signal) })
   const term = search.trim().toLowerCase()
-  const rows = vendors.data?.filter(vendor => [vendor.legal_name, vendor.gstin, vendor.vendor_id].some(value => value.toLowerCase().includes(term)))
-  return <div className="space-y-4">
-    <header className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="page-title">Vendors</h1>
-        <p className="mt-1 text-sm text-muted-foreground">View the vendor records used to check invoice, contact and payment details.</p>
-      </div>
-      <div className="relative">
-        <Search aria-hidden="true" className="pointer-events-none absolute top-2 left-2 size-4 text-slate-500" />
-        <Input aria-label="Search vendors" placeholder="Search vendor or GSTIN" className="w-64 bg-white pl-8"
-          value={search} onChange={event => setSearch(event.target.value)} />
-      </div>
-    </header>
+  const rows = vendors.data?.filter(vendor => [vendor.legal_name, vendor.gstin, vendor.vendor_id].some(value => value.toLowerCase().includes(term))) ?? []
+  function step(direction: 'next' | 'previous') {
+    const row = rows[rowIndex(rows.findIndex(row => row.vendor_id === active), rows.length, direction)]
+    if (row) { setActive(row.vendor_id); document.getElementById('vendor-row-' + row.vendor_id)?.scrollIntoView?.({ block: 'nearest' }) }
+  }
+  useShortcuts({ search: () => input.current?.focus(), next: () => step('next'), previous: () => step('previous'), escape: () => setActive('') })
+
+  return <div className="page-padding">
+    <PageActions>
+      <SearchControl label="Search vendors" placeholder="Search vendor or GSTIN…" inputRef={input} value={search} onChange={setSearch} />
+      <RowKeys onStep={step} disabled={!rows.length} />
+    </PageActions>
     {vendors.isError && <ErrorState title="Could not load vendor records" error={vendors.error} retry={() => void vendors.refetch()} />}
-    <section className="panel">
-      {vendors.isPending && <LoadingState label="Loading vendor records" />}
-      {rows?.length === 0 && <EmptyState title={search ? 'No matching vendors' : 'No vendor records'} />}
-      {!!rows?.length && <Table>
-        <TableHeader className="bg-slate-50"><TableRow>
-          {['ID', 'Vendor name', 'GSTIN', 'State code', 'Status', 'Bank on file', 'Phone on file', 'Email on file', 'Open POs', 'Invoices']
-            .map((label, index) => <TableHead key={label} className={index >= 8 ? 'text-right' : undefined}>{label}</TableHead>)}
-        </TableRow></TableHeader>
-        <TableBody>{rows.map(vendor => <TableRow key={vendor.vendor_id}>
-          <TableCell className="text-muted-foreground tabular-nums">{vendor.vendor_id}</TableCell>
-          <TableCell className="max-w-52 whitespace-normal font-medium">{vendor.legal_name}</TableCell>
-          <TableCell className="tabular-nums">{vendor.gstin}</TableCell>
-          <TableCell className="tabular-nums">{vendor.state_code}</TableCell>
-          <TableCell>{vendor.status === 'blocked' ? <Tooltip>
-            <TooltipTrigger asChild><button type="button" className="status-chip cursor-help bg-rose-50 text-rose-800">
-              <ShieldX aria-hidden="true" />Blocked
-            </button></TooltipTrigger>
-            <TooltipContent className="max-w-64">{vendor.block_reason ?? 'This vendor is blocked from payment.'}</TooltipContent>
-          </Tooltip> : <span className="status-chip bg-emerald-50 text-emerald-800"><Check aria-hidden="true" />Active</span>}</TableCell>
-          <TableCell><span>{vendor.bank_name}</span><span className="block text-xs text-muted-foreground tabular-nums">{maskedBank(vendor.bank_account_number)}</span></TableCell>
-          <TableCell className="tabular-nums">{vendor.phone_on_file}</TableCell>
-          <TableCell>{vendor.email}</TableCell>
-          <TableCell className="text-right tabular-nums">{vendor.open_po_count}</TableCell>
-          <TableCell className="text-right tabular-nums">{vendor.invoice_count}</TableCell>
-        </TableRow>)}</TableBody>
-      </Table>}
+    <section className="panel flex min-h-0 flex-col" aria-label="Vendor master">
+      <header className="panel-title"><h2>Vendor master</h2><span className="text-meta font-normal text-muted-foreground">{rows.length} records</span></header>
+      {vendors.isPending ? <LoadingState label="Loading vendor records" /> :
+        !rows.length ? <EmptyState title={search ? 'No matching vendors' : 'No vendor records'} /> :
+        <div className="max-h-[calc(100dvh-152px)] overflow-auto">
+          <table className="w-full min-w-[1080px] table-fixed" aria-label="Vendor records">
+            <colgroup><col className="w-[50px]" /><col /><col className="w-[138px]" /><col className="w-[42px]" /><col className="w-[215px]" />
+              <col className="w-[144px]" /><col className="w-[119px]" /><col className="w-[166px]" /><col className="w-[66px]" /><col className="w-[63px]" /></colgroup>
+            <thead className="table-head"><tr>
+              {['ID', 'Vendor name', 'GSTIN', 'State', 'Status', 'Bank on file', 'Phone on file', 'Email on file', 'Open POs', 'Invoices'].map((label, index) =>
+                <th key={label} scope="col" className={cn('px-2 font-medium whitespace-nowrap', index >= 8 && 'text-right')}>{label}</th>)}
+            </tr></thead>
+            <tbody>{rows.map(vendor => {
+              const blocked = vendor.status === 'blocked'
+              return <tr key={vendor.vendor_id} id={'vendor-row-' + vendor.vendor_id} className={cn('table-row hover:bg-muted', active === vendor.vendor_id && 'bg-accent hover:bg-accent')}
+                onClick={() => setActive(vendor.vendor_id)}>
+                <td className="identifier px-2 text-muted-foreground">{vendor.vendor_id}</td>
+                <td className="truncate px-2 font-medium" title={vendor.legal_name}>{vendor.legal_name}</td>
+                <td className="identifier px-2">{vendor.gstin}</td>
+                <td className="px-2 text-meta text-muted-foreground">{vendor.state_code}</td>
+                <td className="px-2 text-meta">
+                  <div className="flex min-w-0 items-center gap-1.5" title={vendor.block_reason ?? undefined}>
+                    <span className={cn('size-2 shrink-0', blocked ? 'bg-reject' : 'bg-approve')} aria-hidden="true" />
+                    <span className={cn('shrink-0 font-medium', blocked ? 'text-reject' : 'text-muted-foreground')}>{blocked ? 'Blocked' : 'Active'}</span>
+                    </div>
+                  {blocked && <span className="block leading-4 text-muted-foreground" title={vendor.block_reason ?? undefined}>{vendor.block_reason ?? 'Blocked from payment'}</span>}
+                </td>
+                <td className="px-2 text-meta"><span className="block truncate leading-4" title={vendor.bank_name}>{vendor.bank_name}</span><span className="identifier block leading-4 text-muted-foreground">{maskedBank(vendor.bank_account_number)}</span></td>
+                <td className="truncate px-2 text-meta text-muted-foreground" title={vendor.phone_on_file}>{vendor.phone_on_file}</td>
+                <td className="truncate px-2 text-meta text-muted-foreground" title={vendor.email}>{vendor.email}</td>
+                <td className="px-2 text-right">{vendor.open_po_count}</td><td className="px-2 text-right">{vendor.invoice_count}</td>
+              </tr>
+            })}</tbody>
+          </table>
+        </div>}
     </section>
   </div>
 }

@@ -146,6 +146,16 @@ export const api = {
   policy: (signal?: AbortSignal) => request<Schemas['PolicyResponse']>('GET', '/policy', { signal }),
   policyCanSave: async (signal?: AbortSignal) => {
     if (USE_MOCKS) return false
+    try {
+      const specUrl = API_BASE.replace(/\/api\/?$/, '') + '/openapi.json'
+      const response = await fetch(specUrl, { signal, headers: { Accept: 'application/json' } })
+      if (response.ok && response.headers.get('Content-Type')?.includes('application/json')) {
+        const spec = await response.json() as { paths?: Record<string, { put?: unknown }> }
+        if (spec.paths?.['/api/policy']) return Boolean(spec.paths['/api/policy'].put)
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error
+    }
     const response = await fetch(buildUrl('/policy'), {
       method: 'OPTIONS', signal, headers: accessCode ? { 'X-Access-Code': accessCode } : undefined,
     })

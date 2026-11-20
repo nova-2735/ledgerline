@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Dashboard } from '@/pages/Dashboard'
 import { Inbox } from '@/pages/Inbox'
+import { Runs } from '@/pages/Runs'
 import { RunView } from '@/pages/RunView'
 import { Policy } from '@/pages/Policy'
 import { PoDetail } from '@/pages/PoDetail'
@@ -28,6 +29,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<Dashboard />} />
             <Route path="inbox" element={<Inbox />} />
+            <Route path="runs" element={<Runs />} />
             <Route path="runs/:id" element={<RunView />} />
             <Route path="queue" element={<Queue />} />
             <Route path="purchase-orders" element={<PurchaseOrders />} />

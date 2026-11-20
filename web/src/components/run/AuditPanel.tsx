@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Download } from 'lucide-react'
 import type { Schemas } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -11,49 +11,65 @@ const eventNames = {
   'run.awaiting_review': 'Awaiting review', 'run.completed': 'Run completed', 'run.failed': 'Run failed',
   'review.recorded': 'Review recorded', 'run.resumed': 'Run resumed',
 } satisfies Record<Schemas['RunEvent']['type'], string>
-const rowHeight = 68
-const viewport = 325
+const rowHeight = 36
+const viewport = 360
 
 export function AuditPanel({ run, events, download }: {
   run: Schemas['RunDetail']; events: Schemas['RunEvent'][]; download: () => void
 }) {
   const [position, setPosition] = useState(0)
-  const first = Math.max(0, Math.floor(position / rowHeight) - 2)
-  const last = Math.min(events.length, first + Math.ceil(viewport / rowHeight) + 5)
-  return <div className="space-y-4">
+  const [type, setType] = useState('')
+  const table = useRef<HTMLDivElement>(null)
+  const visible = type ? events.filter(event => event.type === type) : events
+  const first = Math.max(0, Math.min(visible.length, Math.floor(position / rowHeight) - 2))
+  const last = Math.min(visible.length, first + Math.ceil(viewport / rowHeight) + 5)
+  return <div className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-sm"><strong>Policy</strong> {run.policy_version ?? '—'}</p>
+      <p className="text-meta text-muted-foreground">Policy <span className="identifier text-foreground">{run.policy_version ?? '—'}</span></p>
       <Button type="button" size="sm" variant="outline" onClick={download}><Download aria-hidden="true" />Download audit JSON</Button>
     </div>
-    <section className="overflow-hidden rounded-lg border">
-      <h3 className="bg-slate-50 px-3 py-2 text-sm font-semibold">Event log</h3>
-      {events.length ? <div tabIndex={0} aria-label="Scrollable event log" className="overflow-y-auto" style={{ maxHeight: viewport }}
+    <section className="panel">
+      <header className="panel-title"><h3>Event log</h3>
+        <select aria-label="Filter events by type" className="h-7 max-w-40 rounded-sm border bg-card px-1.5 text-meta font-normal" value={type}
+          onChange={event => { setType(event.target.value); setPosition(0); if (table.current) table.current.scrollTop = 0 }}>
+          <option value="">All event types</option>
+          {Object.entries(eventNames).map(([key, title]) => <option key={key} value={key}>{title}</option>)}
+        </select>
+      </header>
+      {visible.length ? <div ref={table} tabIndex={0} aria-label="Scrollable event log" className="overflow-auto" style={{ maxHeight: viewport }}
         onScroll={event => setPosition(event.currentTarget.scrollTop)}>
-        <ol className="relative" style={{ height: events.length * rowHeight }}>
-          {events.slice(first, last).map((event, offset) => <li key={event.seq} aria-posinset={first + offset + 1} aria-setsize={events.length}
-            className="absolute right-0 left-0 overflow-hidden border-b px-3 py-1.5 text-xs"
-            style={{ top: (first + offset) * rowHeight, height: rowHeight }}>
-            <p className="flex flex-wrap items-center gap-x-2"><time dateTime={event.ts} className="text-slate-600 tabular-nums">{istTime(event.ts)}</time>
-              <strong>{eventNames[event.type]}</strong></p>
-            {event.stage && <p className="text-slate-700">{stages[event.stage]}</p>}
-            {event.message && <p className="truncate text-muted-foreground" title={event.message}>{event.message}</p>}
-          </li>)}
-        </ol>
-      </div> : <p className="p-3 text-sm text-muted-foreground">The event log appears when the run starts.</p>}
+        <table aria-label="Run events" aria-rowcount={visible.length + 1} className="w-full min-w-[350px] table-fixed text-meta">
+          <colgroup><col className="w-[61px]" /><col className="w-[101px]" /><col className="w-[93px]" /><col /></colgroup>
+          <thead className="table-head"><tr>{['Time', 'Type', 'Stage', 'Message'].map(label => <th key={label} className="px-1.5 font-medium" scope="col">{label}</th>)}</tr></thead>
+          <tbody>
+            {!!first && <tr aria-hidden="true"><td colSpan={4} style={{ height: first * rowHeight }} /></tr>}
+            {visible.slice(first, last).map((event, offset) => {
+              const stage = event.stage ? stages[event.stage] : '—'
+              return <tr key={event.seq} className="table-row" aria-rowindex={first + offset + 2}>
+                <td className="px-1.5 text-muted-foreground"><time title={istDate(event.ts) + ' · ' + istTime(event.ts)} dateTime={event.ts}>{istTime(event.ts).replace(' IST', '')}</time></td>
+                <td className="truncate px-1.5 font-medium" title={eventNames[event.type]}>{eventNames[event.type]}</td>
+                <td className="truncate px-1.5 text-muted-foreground" title={stage}>{stage}</td>
+                <td className="truncate px-1.5 text-muted-foreground" title={event.message ?? undefined}>{event.message ?? '—'}</td>
+              </tr>
+            })}
+            {last < visible.length && <tr aria-hidden="true"><td colSpan={4} style={{ height: (visible.length - last) * rowHeight }} /></tr>}
+          </tbody>
+        </table>
+      </div> : <p className="p-3 text-body text-muted-foreground">{type ? 'No events of this type.' : 'The event log appears when the run starts.'}</p>}
     </section>
-    {!!run.review_actions.length && <section className="space-y-2">
-      <h3 className="section-title">Review actions</h3>
-      <ol className="divide-y rounded-lg border text-sm">
+    {!!run.review_actions.length && <section className="panel">
+      <h3 className="panel-title">Review actions</h3>
+      <ol className="divide-y">
         {run.review_actions.map(review => <li key={review.id} className="p-2.5">
           <strong>{actions[review.action]} · {review.reviewer}</strong>
-          <time className="block text-xs text-muted-foreground" dateTime={review.created_at}>{istDate(review.created_at)} · {istTime(review.created_at)}</time>
+          <time className="block text-meta text-muted-foreground" dateTime={review.created_at}>{istDate(review.created_at)} · {istTime(review.created_at)}</time>
           <p className="mt-1">{review.note}</p>
         </li>)}
       </ol>
     </section>}
-    {run.extraction && <details className="rounded-lg border p-3 text-sm">
+    {run.extraction && <details className="panel p-2.5">
       <summary className="cursor-pointer font-medium">Raw model output</summary>
-      <pre className="mt-2 max-h-80 overflow-auto rounded bg-slate-50 p-2 text-xs whitespace-pre-wrap wrap-anywhere">{JSON.stringify(run.extraction.meta.raw, null, 2)}</pre>
+      <pre className="mt-2 max-h-72 overflow-auto bg-muted p-2 font-sans text-meta whitespace-pre-wrap wrap-anywhere">{JSON.stringify(run.extraction.meta.raw, null, 2)}</pre>
     </details>}
   </div>
 }

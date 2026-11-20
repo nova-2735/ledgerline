@@ -6,8 +6,8 @@ import { Skeleton } from './ui/skeleton'
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="grid justify-items-center gap-2 px-6 py-12 text-center">
-      <Inbox aria-hidden="true" className="mb-1 size-6 text-slate-400" />
+    <div className="grid justify-items-center gap-1.5 px-4 py-6 text-center">
+      <Inbox aria-hidden="true" className="mb-1 size-6 text-faint" />
       <h2 className="font-semibold">{title}</h2>
       {children && <div className="text-sm text-muted-foreground">{children}</div>}
     </div>
