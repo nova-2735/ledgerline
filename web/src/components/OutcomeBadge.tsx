@@ -13,7 +13,9 @@ export function StatusSquare({ outcome, className }: { outcome?: Schemas['Outcom
     style={outcome ? { backgroundColor: outcomeColors[outcome] } : undefined} />
 }
 
-export function OutcomeBadge({ outcome }: { outcome: Schemas['Outcome'] | null | undefined }) {
+const compactLabels = { APPROVE: 'Approved', HOLD: 'On hold', RETURN: 'Returned', REJECT: 'Rejected' }
+
+export function OutcomeBadge({ outcome, compact = false }: { outcome: Schemas['Outcome'] | null | undefined; compact?: boolean }) {
   if (!outcome) return <span className="status-chip text-muted-foreground"><StatusSquare />Pending</span>
-  return <span className={cn('status-chip', tones[outcome])}><StatusSquare outcome={outcome} />{outcomes[outcome]}</span>
+  return <span className={cn('status-chip', tones[outcome])}><StatusSquare outcome={outcome} />{compact ? compactLabels[outcome] : outcomes[outcome]}</span>
 }

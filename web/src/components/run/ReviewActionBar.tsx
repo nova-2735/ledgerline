@@ -2,12 +2,7 @@ import type { Schemas } from '@/api/client'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { actions } from '@/lib/labels'
-import { actionShortcut } from './reviewActions'
-
-const barLabels: Partial<Record<Schemas['ActionType'], string>> = {
-  verify_bank: 'Verify bank', correct_fields: 'Correct fields', send_to_vendor: 'Send to vendor',
-}
+import { actionLabel, actionShortcut } from './reviewActions'
 
 export function BlockedApproval({ reason }: { reason: string }) {
   return <Tooltip>
@@ -27,7 +22,7 @@ export function ReviewActionBar({ offered, blockingApproval, onAction }: {
       const key = actionShortcut(action)
       return action === 'approve' && blockingApproval ? <BlockedApproval key={action} reason={blockingApproval} /> :
         <Button key={action} type="button" size="sm" variant={i === 0 ? 'default' : 'outline'} onClick={() => onAction(action)}>
-          {barLabels[action] ?? actions[action]}{key && <ShortcutHint id={key} />}
+          {actionLabel(action)}{key && <ShortcutHint id={key} />}
         </Button>
     })}
   </div>

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 const icons = { dashboard: LayoutDashboard, inbox: Mail, runs: List, queue: ListChecks, orders: ClipboardList, vendors: Users, policy: SlidersHorizontal }
 
-export function AppSidebar({ collapsed, count, toggle, openPalette }: { collapsed: boolean; count: number; toggle: () => void; openPalette: () => void }) {
+export function AppSidebar({ collapsed, count, toggle, openPalette, showSidebarShortcut }: { collapsed: boolean; count: number; toggle: () => void; openPalette: () => void; showSidebarShortcut: boolean }) {
   const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose
   return <aside className="flex min-h-0 flex-col border-r bg-card">
     <Link to="/" aria-label="Ledgerline" className={cn('flex h-12 shrink-0 items-center gap-2.5 px-3 text-section', collapsed && 'justify-center')}>
@@ -34,7 +34,7 @@ export function AppSidebar({ collapsed, count, toggle, openPalette }: { collapse
     </nav>
     <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed} onClick={toggle}
       className={cn('mx-2 mt-auto mb-2 flex h-[30px] items-center gap-2 rounded-sm px-2 text-meta text-muted-foreground hover:bg-muted', collapsed && 'justify-center px-0')}>
-      <CollapseIcon className="size-4" aria-hidden="true" />{!collapsed && <>Collapse sidebar<ShortcutHint id="sidebar" className="ml-auto" /></>}
+      <CollapseIcon className="size-4" aria-hidden="true" />{!collapsed && <>Collapse sidebar{showSidebarShortcut && <ShortcutHint id="sidebar" className="ml-auto" />}</>}
     </button>
   </aside>
 }

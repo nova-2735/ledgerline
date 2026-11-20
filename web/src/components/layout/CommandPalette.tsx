@@ -50,10 +50,10 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
   const matches = (text: string) => search.trim().toLowerCase().split(/\s+/).every(word => text.toLowerCase().includes(word))
   const go = (path: string) => { close(); void navigate(path) }
   const invoke = (id: Shortcut) => { close(); if (id === 'sidebar') onSidebar(); else invokeShortcut(id) }
-  const current = pathname === '/' ? 'Dashboard' : pathname === '/runs' ? 'Runs' : pathname === '/inbox' ? 'Inbox' : pathname === '/queue' ? 'Queue' : pathname.startsWith('/runs/') ? 'Run view' : ''
+  const current = pathname === '/' ? 'Dashboard' : pathname === '/runs' ? 'Runs' : pathname === '/inbox' ? 'Inbox' : pathname === '/queue' ? 'Queue' : pathname.startsWith('/runs/') ? 'Run view' : pathname === '/purchase-orders' ? 'POs' : pathname === '/vendors' ? 'Vendors' : ''
   const contextual = shortcutEntries.filter(([id, { group }]) => group === current ||
     (group === 'Review' && ['Run view', 'Queue', 'Dashboard'].includes(current)) || (id === 'peek' && current === 'Queue') ||
-    (group === 'Lists' && ['Runs', 'Inbox', 'Queue'].includes(current)))
+    (group === 'Lists' && ['Runs', 'Inbox', 'Queue', 'POs', 'Vendors'].includes(current) && (current !== 'Vendors' || id !== 'open')))
 
   return <Command label="Search commands" shouldFilter={false} loop>
     <CommandInput value={search} onValueChange={setSearch} placeholder="Search pages, runs and actions…" aria-label="Search commands" />

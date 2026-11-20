@@ -12,11 +12,11 @@ import { Panel } from '@/components/Panel'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { RunsTable } from '@/components/RunsTable'
 import { Button } from '@/components/ui/button'
-import { actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
+import { actionLabel, actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
 import { age, dayBefore, dayOutcomes, greatestRisk, outcomeLabels, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
 import { duration, inr, istDate, pct } from '@/lib/format'
-import { actions, reasons, routes } from '@/lib/labels'
-import { dayOf, effectiveOutcome } from '@/lib/runList'
+import { reasons, routes } from '@/lib/labels'
+import { businessNow, dayOf, effectiveOutcome } from '@/lib/runList'
 import { shortcuts, useShortcuts, type Shortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +31,7 @@ const metrics: [Metric, string, string][] = [
   ['exposure_stopped', 'Exposure stopped', 'Largest qualifying risk per run that has yet to be approved.'],
 ]
 const count = new Intl.NumberFormat('en-IN').format
+const compactMoney = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format
 const money = (value: number) => inr(value.toFixed(2))
 const emptyDay = (date: string) => ({ date, APPROVE: 0, HOLD: 0, RETURN: 0, REJECT: 0 })
 
@@ -62,20 +63,27 @@ export function Dashboard() {
   })
   const statsDays = stats.data?.by_day ?? []
   const today = health.data?.health.today ?? statsDays.at(-1)?.date ?? dayOf(new Date().toISOString())
-  const first = dayBefore(today, days - 1)
-  const rows = (allRuns.data ?? []).filter(run => {
+  const apiStart = dayBefore(today, days - 1)
+  const all = allRuns.data ?? []
+  const first = period === 'All' ? all.reduce((oldest, run) => {
+    const day = dayOf(run.created_at)
+    return day < oldest ? day : oldest
+  }, apiStart) : apiStart
+  const rows = all.filter(run => {
     const day = dayOf(run.created_at)
     return day >= first && day <= today
   })
   const attention = (queue.data?.items ?? []).filter(run => dayOf(run.created_at) >= first && dayOf(run.created_at) <= today)
-  const riskIds = rows.filter(run => run.outcome && run.final_outcome !== 'APPROVE').map(run => run.id)
+  const history = period === 'All' ? rows.filter(run => run.outcome && dayOf(run.created_at) < apiStart) : []
+  const detailIds = [...new Set([...history, ...rows.filter(run => run.outcome && run.final_outcome !== 'APPROVE')].map(run => run.id))]
   const details = useQueries({
-    queries: riskIds.map(id => ({ queryKey: queryKeys.run(id), queryFn: ({ signal }: { signal: AbortSignal }) => api.getRun(id, signal), staleTime: 60_000 })),
+    queries: detailIds.map(id => ({ queryKey: queryKeys.run(id), queryFn: ({ signal }: { signal: AbortSignal }) => api.getRun(id, signal), staleTime: 60_000 })),
   })
   const runsById = new Map(details.flatMap(({ data }) => data ? [[data.id, data] as const] : []))
   const exposure = new Map<string, number>()
   const byReason = new Map<string, number>()
   for (const detail of runsById.values()) {
+    if (detail.final_outcome === 'APPROVE') continue
     const { amount, type } = greatestRisk(detail)
     if (type) exposure.set(type, (exposure.get(type) ?? 0) + amount)
     if (detail.primary_reason) byReason.set(detail.primary_reason, (byReason.get(detail.primary_reason) ?? 0) + amount)
@@ -88,9 +96,37 @@ export function Dashboard() {
   }, {})).sort(([, a], [, b]) => b.count - a.count)
   const recent = rows.slice(0, 8)
   const previous = windows.at(-1)?.data?.kpis
+  const olderDays = new Map<string, Day>()
+  const exceptionRows = new Map((stats.data?.by_reason ?? []).map(reason => [reason.code, { ...reason }]))
+  let earlierApprovals = 0
+  let earlierExposure = 0
+  for (const run of history) {
+    const date = dayOf(run.created_at)
+    const day = olderDays.get(date) ?? emptyDay(date)
+    day[effectiveOutcome(run)!]++
+    olderDays.set(date, day)
+    const detail = runsById.get(run.id)
+    const original = detail?.decision_history[0]
+    if (original?.outcome === 'APPROVE' && !detail?.review_actions.length) earlierApprovals++
+    if (detail && detail.final_outcome !== 'APPROVE') earlierExposure += greatestRisk(detail).amount
+    if (original?.outcome !== 'APPROVE' && original?.primary_reason) {
+      const row = exceptionRows.get(original.primary_reason) ?? { code: original.primary_reason, count: 0, amount: '0.00' }
+      exceptionRows.set(row.code, { ...row, count: row.count + 1 })
+    }
+  }
   const dashboardDayMap = new Map(statsDays.map(day => [day.date, day]))
-  const byDay = Array.from({ length: days }, (_, index) => dayBefore(today, days - 1 - index)).map(day => dashboardDayMap.get(day) ?? emptyDay(day))
-  const kpis = stats.data?.kpis
+  const byDay = [...[...olderDays.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    ...Array.from({ length: days }, (_, index) => dayBefore(today, days - 1 - index)).map(day => dashboardDayMap.get(day) ?? emptyDay(day))]
+  const earlierValue = history.reduce((total, run) => total + Number(run.total ?? 0), 0)
+  const latestKpis = stats.data?.kpis
+  const kpis = latestKpis && history.length ? {
+    ...latestKpis,
+    processed: latestKpis.processed + history.length,
+    value_processed: (Number(latestKpis.value_processed) + earlierValue).toFixed(2),
+    touchless_rate: (Math.round(latestKpis.processed * latestKpis.touchless_rate) + earlierApprovals) / (latestKpis.processed + history.length),
+    exposure_stopped: (Number(latestKpis.exposure_stopped) + earlierExposure).toFixed(2),
+    median_decision_ms: median(rows.filter(run => run.source !== 'seed' && run.outcome).flatMap(run => run.duration_ms ?? [])),
+  } : latestKpis
   const [review, setReview] = useState<number>()
 
   const dashboardReviewKeys = Object.fromEntries(reviewActions(review == null ? undefined : runsById.get(review)).flatMap(action => {
@@ -106,21 +142,28 @@ export function Dashboard() {
   })
 
   function spark(metric: Metric) {
-    if (!kpis) return []
+    if (!latestKpis) return []
     const bins = [...samples, days]
     if (metric === 'awaiting_review' || metric === 'median_decision_ms') {
-      return bins.map((end, i) => {
+      const series = bins.map((end, i) => {
         const start = bins[i - 1] ?? 0
         const rangeStart = dayBefore(today, end - 1), rangeEnd = dayBefore(today, start)
         const includes = (at: string) => dayOf(at) >= rangeStart && dayOf(at) <= rangeEnd
         if (metric === 'awaiting_review') return attention.filter(run => includes(run.created_at)).length
-        const timings = rows.flatMap(run => run.source !== 'seed' && run.duration_ms != null && includes(run.created_at) ? [run.duration_ms] : []).sort((a, b) => a - b)
-        return timings.length ? (timings[Math.floor((timings.length - 1) / 2)] + timings[Math.floor(timings.length / 2)]) / 2 : 0
+        const timings = rows.flatMap(run => run.source !== 'seed' && run.duration_ms != null && includes(run.created_at) ? [run.duration_ms] : [])
+        return median(timings) ?? 0
       }).reverse()
+      if (!history.length) return series
+      const earlier = metric === 'awaiting_review' ? attention.filter(run => dayOf(run.created_at) < apiStart).length :
+        median(history.filter(run => run.source !== 'seed').flatMap(run => run.duration_ms ?? [])) ?? 0
+      return [earlier, ...series]
     }
-    const values = [...windows.slice(0, 5).map(query => query.data?.kpis), kpis]
+    const values = [...windows.slice(0, 5).map(query => query.data?.kpis), latestKpis]
     if (values.some(value => !value)) return []
-    return values.map((value, index) => index === 0 ? Number(value![metric]) : subtractPeriods(value!, values[index - 1]!, metric) ?? 0).reverse()
+    const series = values.map((value, index) => index === 0 ? Number(value![metric]) : subtractPeriods(value!, values[index - 1]!, metric) ?? 0).reverse()
+    if (!history.length) return series
+    const earlier = { processed: history.length, value_processed: earlierValue, touchless_rate: earlierApprovals / history.length, exposure_stopped: earlierExposure }
+    return [earlier[metric], ...series]
   }
 
   async function refresh() {
@@ -133,8 +176,8 @@ export function Dashboard() {
   return <div className="page-padding">
     <PageActions>
       <div className="flex h-8 shrink-0 items-center divide-x border bg-card" aria-label="Dashboard period">
-        {periods.map(([name, span, key], index) => <button key={name} type="button" aria-pressed={index === periodIndex}
-          title={name === 'All' ? 'All available history (up to ' + span + ' days)' : shortcuts[key].label}
+        {periods.map(([name, , key], index) => <button key={name} type="button" aria-pressed={index === periodIndex}
+          title={shortcuts[key].label}
           onClick={() => setPeriod(index)} className={cn('flex h-full items-center gap-1 px-2 text-meta font-medium hover:bg-muted', index === periodIndex && 'bg-accent text-primary hover:bg-accent')}>
           {name}<ShortcutHint id={key} className="hidden md:inline-flex" />
         </button>)}
@@ -152,14 +195,14 @@ export function Dashboard() {
         return <div className="col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
           period={period} delta={difference == null ? undefined : {
             value: difference,
-            text: metric === 'touchless_rate' ? (Math.abs(difference) * 100).toFixed(1) + ' pp' : metricText(metric, Math.abs(difference)), tone,
+            text: metric === 'touchless_rate' ? (Math.abs(difference) * 100).toFixed(1) + ' pp' : (metric === 'value_processed' || metric === 'exposure_stopped') ? compactMoney(Math.abs(difference)) : metricText(metric, Math.abs(difference)), tone,
           }} series={spark(metric)} /></div>
       })}
       <Panel className="col-span-full lg:col-span-8" title="Decisions per day" action={<span className="text-meta font-normal text-muted-foreground">{istDate(first)} – {istDate(today)}</span>}>
         {stats.isPending ? <LoadingState label="Loading daily decisions" /> : <Decisions bars={byDay} />}
       </Panel>
       <Panel className="col-span-full lg:col-span-4" title="Exceptions by reason">
-        {stats.isPending ? <LoadingState label="Loading exceptions" /> : <Exceptions rows={stats.data?.by_reason ?? []} amounts={byReason} />}
+        {stats.isPending ? <LoadingState label="Loading exceptions" /> : <Exceptions rows={[...exceptionRows.values()]} amounts={byReason} />}
       </Panel>
       <Panel className="col-span-full flex flex-col lg:col-span-8" title="Needs attention" action={<span className="text-meta font-normal text-muted-foreground">{attention.length} waiting</span>}>
         {queue.isError ? <ErrorState title="Could not load the review queue" error={queue.error} retry={() => void queue.refetch()} /> :
@@ -167,7 +210,7 @@ export function Dashboard() {
           !attention.length ? <EmptyState title="Nothing is waiting in this period" /> :
           <div className="overflow-x-auto">
             <table aria-label="Invoices that need attention" className="w-full min-w-[610px] table-fixed">
-              <colgroup><col className="w-[92px]" /><col className="w-[132px]" /><col className="w-24" /><col className="w-11" /><col /><col className="w-32" /></colgroup>
+              <colgroup><col className="w-[92px]" /><col className="w-[126px]" /><col className="w-24" /><col className="w-12" /><col /><col className="w-36" /></colgroup>
               <thead className="table-head"><tr>{['Owner', 'Vendor', 'Amount', 'Age', 'Next step', 'Action'].map((label, index) => <th className={cn('px-2 font-medium', (index === 2 || index === 3) && 'text-right')} key={label} scope="col">{label}</th>)}</tr></thead>
               <tbody>{[...attention].sort((a, b) => (runsById.get(b.id)?.checks.some(c => c.status === 'fail' && c.severity === 'critical') ? 1 : 0) -
                 (runsById.get(a.id)?.checks.some(c => c.status === 'fail' && c.severity === 'critical') ? 1 : 0) || b.age_hours - a.age_hours).slice(0, 6).map(run => {
@@ -178,10 +221,10 @@ export function Dashboard() {
                   <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate">{run.route ? routes[run.route] : '—'}</span></div></td>
                   <td className="truncate px-2" title={run.vendor_name ?? undefined}><Link className="text-link" to={'/runs/' + run.id}>{run.vendor_name ?? 'Unknown vendor'}</Link></td>
                   <td className="px-2 text-right text-meta">{inr(run.total)}</td>
-                  <td className="px-2 text-right text-meta text-muted-foreground">{age(run.age_hours)}</td>
+                  <td className="px-2 text-right text-meta whitespace-nowrap text-muted-foreground">{age(run.age_hours)}</td>
                   <td className="truncate px-2 text-meta text-muted-foreground" title={run.question}>{run.question}</td>
                   <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" asChild><Link to={'/queue?focus=' + run.id + (action ? '&action=primary' : '')}>
-                    <span className="truncate">{action ? actions[action] : 'Review'}</span><ShortcutHint id={actionKey} />
+                    <span className="truncate">{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
                   </Link></Button></td>
                 </tr>
               })}</tbody>
@@ -204,10 +247,15 @@ export function Dashboard() {
       <Panel className="col-span-full" title="Recent runs" action={<Link className="text-link inline-flex items-center gap-1.5 text-meta" to="/runs">View all runs <ShortcutHint id="runs" /><ArrowUpRight className="size-3" /></Link>}>
         {allRuns.isPending ? <LoadingState label="Loading recent runs" /> :
           allRuns.isError ? <ErrorState title="Could not load invoice runs" error={allRuns.error} retry={() => void allRuns.refetch()} /> :
-          <div className="overflow-auto"><RunsTable runs={recent} now={Date.parse(today + 'T23:59:59+05:30')} /></div>}
+          <div className="overflow-auto"><RunsTable runs={recent} now={businessNow(today)} /></div>}
       </Panel>
     </div>
   </div>
+}
+
+function median(timings: number[]) {
+  timings.sort((a, b) => a - b)
+  return timings.length ? (timings[Math.floor((timings.length - 1) / 2)] + timings[Math.floor(timings.length / 2)]) / 2 : null
 }
 
 function Decisions({ bars }: { bars: Day[] }) {

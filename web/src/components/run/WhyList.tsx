@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import type { Schemas } from '@/api/client'
 import { StatusChip } from '@/components/StatusChip'
 import { inr } from '@/lib/format'
@@ -9,21 +10,23 @@ export function WhyList({ checks, onHighlight }: {
   const why = [...checks.filter(check => check.status === 'fail'), ...checks.filter(check => check.status === 'warn')]
   const passed = checks.filter(check => check.status === 'pass')
   const list = (rows: Schemas['CheckResult'][]) => <ul className="divide-y">
-    {rows.map(check => {
+    {rows.map((check, index) => {
       const field = checkField(check)
-      return <li key={check.rule_id} className="space-y-1 p-2.5 hover:bg-muted" tabIndex={field ? 0 : undefined}
+      return <li key={check.rule_id + '-' + index}
+        className={cn('space-y-1 p-2.5 hover:bg-muted', check.severity === 'critical' && 'border-l-2 border-l-reject')}
+        tabIndex={field ? 0 : undefined}
         onMouseEnter={() => onHighlight(field)} onMouseLeave={() => onHighlight(null)}
         onFocus={() => onHighlight(field)} onBlur={() => onHighlight(null)}>
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusChip status={check.status} severity={check.severity} hint={check.outcome_hint} />
           <strong className="text-sm">{check.title}</strong>
-          {check.resolved_by_review && <span className="text-xs font-medium text-emerald-800">Resolved in review</span>}
+          {check.resolved_by_review && <span className="text-meta font-medium text-approve">Resolved in review</span>}
         </div>
         <p className="text-sm text-muted-foreground">{check.message}</p>
         {check.amount_at_risk && <p className="text-xs font-medium tabular-nums">{inr(check.amount_at_risk)} at risk</p>}
         {Object.keys(check.evidence).length > 0 && <details className="text-xs">
           <summary className="cursor-pointer font-medium text-primary">Details</summary>
-          <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap wrap-anywhere">{JSON.stringify(check.evidence, null, 2)}</pre>
+          <pre className="mt-1 max-h-32 overflow-auto rounded-sm bg-muted p-2 font-sans whitespace-pre-wrap wrap-anywhere">{JSON.stringify(check.evidence, null, 2)}</pre>
         </details>}
       </li>
     })}

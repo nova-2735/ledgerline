@@ -10,7 +10,7 @@ import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { outcomes, reasons, routes, runStatuses, sources } from '@/lib/labels'
-import { dayOf, downloadRuns, effectiveOutcome, inView, runViews, type Run, type RunView } from '@/lib/runList'
+import { businessNow, dayOf, downloadRuns, effectiveOutcome, inView, runViews, type Run, type RunView } from '@/lib/runList'
 import { rowIndex, useShortcuts } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
@@ -20,10 +20,11 @@ const entries = (labels: Record<string, string>) => Object.entries(labels)
 export function Runs() {
   const runs = useAllRuns(true)
   const today = useHealth().data?.health.today
-  const now = today ? new Date(today + 'T23:59:59+05:30').getTime() : undefined
+  const now = businessNow(today)
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const search = useRef<HTMLInputElement>(null)
+  const datePopup = useRef<HTMLDetailsElement>(null)
   const [active, setActive] = useState<number>()
   const [checked, setChecked] = useState<Set<number>>(new Set())
   const [peek, setPeek] = useState<number | null>(null)
@@ -54,7 +55,7 @@ export function Runs() {
   })
   const sorted = sortRuns(matches.filter(r => inView(r, view)), sort)
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const page = Math.max(1, Math.min(pageCount, Number(value('page')) || 1))
+  const page = Math.max(1, Math.min(pageCount, parseInt(value('page'), 10) || 1))
   const visible = sorted.slice((page - 1) * pageSize, page * pageSize)
   const activeIndex = visible.findIndex(run => run.id === active)
   const current = visible[activeIndex]
@@ -103,8 +104,10 @@ export function Runs() {
     open: () => open(current), select: () => { if (current) toggle(current.id) },
     peek: () => { if (current) setPeek(current.id) },
     export: () => { if (exportRows.length) downloadRuns(exportRows) },
-    escape: () => { setActive(undefined); setChecked(new Set()) },
+    escape: () => { if (datePopup.current?.open) datePopup.current.open = false; else clearSelection() },
   })
+
+  function clearSelection() { setActive(undefined); setChecked(new Set()) }
 
   const activeFilters = filters.filter(filter => value(filter.key))
   const hasFilters = !!(activeFilters.length || date || from || to || query)
@@ -131,9 +134,9 @@ export function Runs() {
         onChange={event => update({ [key]: event.target.value })}>
         <option value="">{label}</option>{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
       </select>)}
-      <details className="relative">
+      <details ref={datePopup} className="relative">
         <summary className="flex h-8 cursor-pointer list-none items-center rounded-sm border bg-card px-2 text-meta hover:bg-muted">Date range</summary>
-        <div className="absolute right-0 z-30 grid min-w-44 gap-2 border bg-card p-2 shadow-lg">
+        <div className="absolute right-0 z-30 grid min-w-44 gap-2 border bg-card p-2">
           <label className="grid gap-1 text-meta">From<Input type="date" value={from} onChange={event => update({ from: event.target.value, date: '' })} /></label>
           <label className="grid gap-1 text-meta">To<Input type="date" value={to} onChange={event => update({ to: event.target.value, date: '' })} /></label>
         </div>
@@ -155,6 +158,7 @@ export function Runs() {
       <div className="flex min-h-9 shrink-0 items-center gap-2 border-t px-3 text-meta text-muted-foreground">
         <span>{sorted.length ? 'Showing ' + ((page - 1) * pageSize + 1) + '–' + Math.min(page * pageSize, sorted.length) + ' of ' + sorted.length : 'Showing 0 runs'}</span>
         <div className="ml-auto hidden gap-2 sm:flex">
+          {(current || selected.length > 0) && <Button size="sm" variant="ghost" onClick={clearSelection}>Clear selection <ShortcutHint id="escape" /></Button>}
           <Button size="sm" variant="ghost" disabled={!visible.length} onClick={() => step('previous')}>Previous row <ShortcutHint id="previous" /></Button>
           <Button size="sm" variant="ghost" disabled={!visible.length} onClick={() => step('next')}>Next row <ShortcutHint id="next" /></Button>
           <Button size="sm" variant="ghost" disabled={!current} onClick={() => open(current)}>Open <ShortcutHint id="open" /></Button>

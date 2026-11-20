@@ -133,9 +133,9 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
   }, !action, 'run-evidence')
 
   const tabs = () => <Tabs value={tab} onValueChange={value => selectTab(value as RunTab)} className="flex h-full min-h-0 min-w-0 flex-col gap-0">
-    <TabsList className="grid h-9 w-full shrink-0 grid-cols-4 rounded-none border-b bg-card px-1 py-0">
+    <TabsList variant="line" className="grid h-9 w-full shrink-0 grid-cols-4 rounded-none border-b bg-card px-1 py-0">
       {tabKeys.map(key => <TabsTrigger key={key} value={key}
-        className="h-full rounded-none border-b-2 border-transparent px-1 text-meta shadow-none! data-active:border-primary data-active:bg-card data-active:text-primary">
+        className="h-full rounded-none border-0 border-b-2 border-transparent px-1 text-meta shadow-none! after:hidden data-[state=active]:border-b-primary! data-[state=active]:bg-card! data-[state=active]:text-primary!">
         {tabLabels[key]}<ShortcutHint id={key} />
       </TabsTrigger>)}
     </TabsList>

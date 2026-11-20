@@ -51,7 +51,7 @@ export function RunsTable({ runs, sort, onSort, selection, now }: {
   return <table aria-label="Invoice runs" className="w-full min-w-[940px] table-fixed text-body">
     <colgroup>
       {selection && <col className="w-8" />}
-      <col className="w-[134px]" /><col className="w-[77px]" /><col className="w-[93px]" />
+      <col className="w-[100px]" /><col className="w-[77px]" /><col className="w-[93px]" />
       <col /><col className="w-[134px]" /><col className="w-[106px]" /><col className="w-[115px]" />
       <col /><col className="w-[100px]" /><col className="w-[59px]" />
       {selection && <col className="w-9" />}
@@ -87,7 +87,7 @@ export function RunsTable({ runs, sort, onSort, selection, now }: {
           {selection && <td className="px-2"><input type="checkbox" className="size-3.5 align-middle accent-primary"
             aria-label={'Select ' + run.display_id + ' for export'} checked={selection.checked.has(run.id)}
             onChange={() => selection.toggle(run.id)} /></td>}
-          <td className="px-2.5">{outcome ? <OutcomeBadge outcome={outcome} /> : <RunStatusChip status={run.status} />}</td>
+          <td className="px-2.5">{outcome ? <OutcomeBadge outcome={outcome} compact /> : <RunStatusChip status={run.status} />}</td>
           <td className="px-2.5"><Link className="identifier text-link" title={sources[run.source]} to={'/runs/' + run.id}>{run.display_id}</Link></td>
           <td className="truncate px-2.5 text-meta text-muted-foreground" title={istDate(run.created_at) + ' · ' + istTime(run.created_at)}>
             {relativeTime(run.created_at, now)}

@@ -110,7 +110,7 @@ export function AppShell() {
 
   return <div className={cn('grid h-dvh overflow-hidden grid-rows-[minmax(0,1fr)_28px]', collapsed ? 'grid-cols-[52px_minmax(0,1fr)]' : 'grid-cols-[220px_minmax(0,1fr)]')}>
     <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:bg-card focus:p-2">Skip to content</a>
-    <AppSidebar collapsed={collapsed} count={count} toggle={toggleSidebar} openPalette={() => setPaletteOpen(true)} />
+    <AppSidebar collapsed={collapsed} count={count} showSidebarShortcut={!runRoute} toggle={toggleSidebar} openPalette={() => setPaletteOpen(true)} />
     <div className="flex min-h-0 min-w-0 flex-col">
       <TopBar actionsRef={setActionTarget} />
       <main id="main" className="min-h-0 flex-1 overflow-auto">

@@ -25,9 +25,12 @@ const folders = [
   ['all', 'All'], ['new', 'Unprocessed'], ['processed', 'Processed'], ['edge', 'Edge cases'], ['uploaded', 'Uploaded'],
 ] as const
 
+const outcomeTags = new Set(['approve', 'approved', 'hold', 'return', 'return-to-vendor', 'reject', 'expected-approve', 'expected-hold', 'expected-return', 'expected-reject'])
+const shownTags = (mail?: Mail) => mail?.tags.filter(tag => !outcomeTags.has(tag.toLowerCase())) ?? []
+
 function hasFolder(item: Item, folder: string) {
   if (folder === 'uploaded') return !item.doc
-  if (!item.doc) return false
+  if (!item.doc) return folder === 'all'
   if (folder === 'edge') return item.doc.is_edge_case
   if (folder === 'new') return !item.doc.processed_run_ids.length
   if (folder === 'processed') return !!item.doc.processed_run_ids.length
@@ -166,7 +169,7 @@ export function Inbox() {
                     <span className="truncate font-medium" title={item.doc?.sender_name ?? item.run?.vendor_name ?? undefined}>{item.doc?.sender_name ?? item.run?.vendor_name ?? 'Uploaded PDF'}</span>
                     <span className="truncate text-meta" title={item.doc?.subject ?? item.run?.filename}>{item.doc?.subject ?? item.run?.filename}</span>
                     <span className="hidden max-w-24 items-center gap-1 overflow-hidden xl:flex">
-                      {item.doc?.tags.slice(0, 2).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
+                      {shownTags(item.doc).filter(tag => tag !== 'digital').slice(0, 1).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
                     </span>
                     {date && <time dateTime={date} className="whitespace-nowrap text-meta text-muted-foreground" title={istDate(date) + ' · ' + istTime(date)}>{istTime(date).replace(' IST', '')}</time>}
                   </button></li>
@@ -191,7 +194,7 @@ export function Inbox() {
               <div><dt>Attachment</dt><dd className="truncate" title={entry.doc?.filename ?? entry.run?.filename}>{entry.doc?.filename ?? entry.run?.filename}</dd></div>
               <div><dt>Size</dt><dd>{fileSize(detail.data)}</dd></div>
             </dl>
-            {!!entry.doc?.tags.length && <div className="flex flex-wrap gap-1.5">{entry.doc.tags.map(tag => <span key={tag} className="rounded-sm border bg-muted px-1.5 py-0.5 text-meta text-muted-foreground">{tag}</span>)}</div>}
+            {shownTags(entry.doc).length > 0 && <div className="flex flex-wrap gap-1.5">{shownTags(entry.doc).map(tag => <span key={tag} className="rounded-sm border bg-muted px-1.5 py-0.5 text-meta text-muted-foreground">{tag}</span>)}</div>}
             {entry.doc && <section><h4 className="text-section">What’s tricky here</h4><p className="mt-1 text-body text-muted-foreground">{entry.doc.title}</p></section>}
             {currentId && <div className="flex items-center justify-between gap-2 border-t py-2">
               <div className="min-w-0"><div className="text-meta text-muted-foreground">{entry.doc ? 'Last run' : 'Invoice run'}</div>

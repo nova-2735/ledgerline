@@ -33,7 +33,7 @@ export function greatestRisk(run: RunDetail) {
   let type: RiskType | undefined
   for (const check of run.checks) {
     const group = riskType(check.code), value = Number(check.amount_at_risk)
-    if (check.status === 'fail' && group && value > amount) { amount = value; type = group }
+    if (check.status === 'fail' && group && (value > amount || (value === amount && check.code === run.primary_reason))) { amount = value; type = group }
   }
   return { amount, type }
 }
