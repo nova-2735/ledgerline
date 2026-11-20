@@ -104,6 +104,23 @@ export function runEventsUrl(runId: number, after?: number): string {
   return buildUrl(`/runs/${runId}/events`, { after, code: accessCode })
 }
 
+export function auditPdfUrl(runId: number): string {
+  return buildUrl(`/runs/${runId}/audit.pdf`, { code: accessCode })
+}
+
+export async function supportsAuditPdf(runId: number, signal?: AbortSignal): Promise<boolean> {
+  if (USE_MOCKS) return false
+  const url = auditPdfUrl(runId)
+  let response = await fetch(url, { method: 'HEAD', signal })
+  if (response.status === 405 || response.status === 501) {
+    response = await fetch(url, { signal })
+    await response.body?.cancel()
+  }
+  if (response.status === 404) return false
+  if (!response.ok) throw new ApiError(response.status, 'audit_pdf_probe', 'Could not check audit PDF availability.')
+  return response.headers.get('content-type')?.includes('application/pdf') ?? false
+}
+
 export function runDocumentUrl(runId: number): string {
   return buildUrl(`/runs/${runId}/document`, { code: accessCode })
 }

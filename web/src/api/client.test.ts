@@ -1,4 +1,4 @@
-import { api, ApiError, runEventsUrl, setAccessCode } from './client'
+import { api, ApiError, auditPdfUrl, supportsAuditPdf, runEventsUrl, setAccessCode } from './client'
 
 function mockFetch(status: number, body: unknown) {
   const fn = vi.fn(async () => new Response(JSON.stringify(body), { status }))
@@ -33,6 +33,22 @@ describe('api client', () => {
       status: 501,
       code: 'not_implemented',
     } satisfies Partial<ApiError>)
+  })
+
+  it('detects PDF support using GET when HEAD is unsupported and preserves the code', async () => {
+    setAccessCode('a & b')
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 405 }))
+      .mockResolvedValueOnce(new Response('PDF', { headers: { 'Content-Type': 'application/pdf' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await supportsAuditPdf(9)).toBe(true)
+    expect(auditPdfUrl(9)).toBe('/api/runs/9/audit.pdf?code=a+%26+b')
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([auditPdfUrl(9), auditPdfUrl(9)])
+  })
+
+  it('recognises an older backend from a single 404', async () => {
+    const fetchMock = mockFetch(404, {})
+    expect(await supportsAuditPdf(3)).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('puts the access code in the SSE query string', () => {

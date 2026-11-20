@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { Schemas } from '@/api/client'
+import { useQuery } from '@tanstack/react-query'
+import { auditPdfUrl, supportsAuditPdf, type Schemas } from '@/api/client'
 import { OutcomeBadge } from '@/components/OutcomeBadge'
 import { RunStatusChip } from '@/components/StatusChip'
 import { ShortcutHint } from '@/components/ShortcutHint'
@@ -13,6 +14,11 @@ export function RecordBar({ run, prev, next, navigate, download, downloading, or
   run: Schemas['RunDetail']; prev?: number; next?: number; navigate: (id: number) => void
   download: () => void; downloading: boolean; original: () => void
 }) {
+  const pdf = useQuery({
+    queryKey: ['audit-pdf-support'],
+    queryFn: ({ signal }) => supportsAuditPdf(run.id, signal),
+    staleTime: Infinity, gcTime: Infinity,
+  })
   const outcome = effectiveOutcome(run)
   return <div className="flex h-10 shrink-0 items-center justify-between gap-2 overflow-hidden border-b bg-card px-3">
     <div className="flex h-full min-w-0 items-center overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
@@ -32,6 +38,10 @@ export function RecordBar({ run, prev, next, navigate, download, downloading, or
       <Button variant="ghost" size="sm" aria-label="Previous run" title="Previous run" disabled={!prev} onClick={() => prev && navigate(prev)}><ChevronLeft className="lg:hidden" /><ShortcutHint id="prevRun" className="hidden lg:inline-flex" /></Button>
       <Button variant="ghost" size="sm" aria-label="Next run" title="Next run" disabled={!next} onClick={() => next && navigate(next)}><ChevronRight className="lg:hidden" /><ShortcutHint id="nextRun" className="hidden lg:inline-flex" /></Button>
       <Button variant="outline" size="sm" disabled={downloading} aria-label="Download audit JSON" title="Download audit JSON" onClick={download}><Download /><span className="hidden xl:inline">Audit JSON</span></Button>
+      {pdf.data ? <Button asChild variant="outline" size="sm"><a href={auditPdfUrl(run.id)} download><Download />Audit PDF</a></Button> :
+        <span tabIndex={0} title={pdf.isPending ? 'Checking availability' : pdf.isError ? 'Could not check availability' : 'Available after backend update'}>
+          <Button variant="outline" size="sm" disabled><Download />Audit PDF</Button>
+        </span>}
       <Button variant="outline" size="sm" aria-label="Open original PDF" title="Open original PDF" onClick={original}><FileText /><span className="hidden xl:inline">Original PDF</span></Button>
     </div>
   </div>
