@@ -125,3 +125,40 @@ def _read_yaml(path: Path) -> dict[str, object]:
 def load_policy(path: Path | None = None) -> Policy:
     """Read the policy YAML (default `POLICY_PATH`)."""
     return Policy.model_validate(_read_yaml(path or get_settings().policy_path))
+
+
+# --- saved overrides (PUT /policy) -------------------------------------------------------------
+
+
+def overrides_path() -> Path:
+    return get_settings().data_dir / "policy_overrides.json"
+
+
+def saved_overrides() -> dict[str, Any]:
+    path = overrides_path()
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"), parse_float=str)
+    return data if isinstance(data, dict) else {}
+
+
+def active_policy() -> Policy:
+    """The policy runs are decided with: the YAML plus any overrides saved from the Policy page."""
+    base = load_policy()
+    saved = saved_overrides()
+    return base.with_overrides(saved) if saved else base
+
+
+def save_overrides(overrides: Mapping[str, Any]) -> Policy:
+    """Validate and persist overrides (merged section by section over earlier ones)."""
+    merged: dict[str, Any] = saved_overrides()
+    for key, value in overrides.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    policy = load_policy().with_overrides(merged)
+    path = overrides_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(merged, default=str, indent=2), encoding="utf-8")
+    return policy

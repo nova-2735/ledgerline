@@ -40,3 +40,13 @@
 - Drafts: a RETURN always drafts a vendor email when the vendor is in the master; unknown vendors never get one (there is no master address); internal notes go to the role (Treasury, Receiving, Procurement, or "Buyer — <PO buyer>").
 - Posting: a small unmatched charge allowed without a PO line is posted to the first matched line's GL account; per-line GST is computed at the PO rate, and any rounding difference against the invoice's tax total lands on the last line.
 - Explanation polish: the model call made by `polish()` is not logged as a run event here; the pipeline does that when it calls `explain`.
+- Intake: a file that fails the upload checks (not a PDF, damaged, encrypted, over `MAX_UPLOAD_MB` or `MAX_PAGES`) is refused by `POST /runs` with 422 (413 for size) and the reader's code; no run is created and nothing is stored.
+- Resume: rule stages before the resume point are re-evaluated quietly with the review overrides, so checks resolved by review show as resolved in the run detail; only the resumed stages emit events.
+- Review: approve / reject / send_to_vendor append a reviewer decision version (final). Approve marks the open failing checks as resolved by that reviewer and builds the posting from the stored matching.
+- Review: `not_duplicate` and `reopen` are also accepted on finished runs (an automatic duplicate REJECT); `reopen` re-checks from `validate_document` against current reference data.
+- Ledger: every decided run has an `invoice_ledger` row (final outcome empty while awaiting review); billing is written on final APPROVE; a bundled row bills each PO line's ordered quantity with the amount split by PO value; a run stops billing while it is re-checked after review.
+- Seed: history always uses the offline reader (ground truth) with explanation polish off; reset keeps the model cache and clears saved policy overrides. Documents are de-duplicated by hash, so H19 (a byte copy) shows H14's filename.
+- Stats: the window is runs created in the last `days` days (IST); touchless = first decision APPROVE with no review action; `by_reason` / `by_route` use the first decision of runs that were not auto-approved.
+- Policy preview: "before" is recomputed under the current policy rather than read from the stored decision, so only the policy change shows; duplicate checks compare against earlier runs only.
+- Policy: `PUT /policy` saves overrides to `DATA_DIR/policy_overrides.json`; new runs and `GET /policy` use the YAML plus saved overrides.
+- Decision: a check resolved by review can leave a follow-up note on the decision (bank change → update the vendor master via change control before the payment run).

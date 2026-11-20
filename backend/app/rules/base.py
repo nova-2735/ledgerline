@@ -389,7 +389,7 @@ def build_context(
         po_confirmed=confirmed,
         po_vendor_name=_vendor_name(session, po),
         po_candidates=candidates,
-        balances=ledger.balance_map(po.po_number) if po else {},
+        balances=ledger.balance_map(po.po_number, run_id) if po else {},
         grns=grns,
         ledger_rows=ledger_rows,
         file_rows=file_rows,

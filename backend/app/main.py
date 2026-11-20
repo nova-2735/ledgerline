@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__, clock, db
 from app.api import ROUTERS
-from app.api.deps import APIError
+from app.api.deps import APIError, require_access
 from app.config import get_settings
 from app.ingest.ocr import ocr_available
 from app.models.api import HealthResponse
@@ -102,6 +102,9 @@ def _operation_id(route: APIRoute) -> str:
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     db.init_db()
     yield
+    from app.pipeline import runner
+
+    runner.shutdown()
 
 
 def create_app(static_dir: Path | None = None) -> FastAPI:
@@ -122,7 +125,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     _install_error_handlers(app)
     app.include_router(_health_router(), prefix="/api")
     for router in ROUTERS:
-        app.include_router(router, prefix="/api")
+        app.include_router(router, prefix="/api", dependencies=[Depends(require_access)])
     _mount_spa(app, static_dir or STATIC_DIR)
     return app
 

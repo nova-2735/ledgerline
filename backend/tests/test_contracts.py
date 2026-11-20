@@ -200,7 +200,6 @@ def test_openapi_money_is_string(client: TestClient) -> None:
         ("post", "/api/runs", {"files": {"file": ("a.pdf", b"%PDF-1.4", "application/pdf")}}),
         ("post", "/api/demo/runs/S01", {"json": {"force_fresh": False}}),
         ("get", "/api/demo/inbox", {}),
-        ("post", "/api/demo/reset", {}),
         (
             "post",
             "/api/runs/1/review",
@@ -216,18 +215,18 @@ def test_openapi_money_is_string(client: TestClient) -> None:
         ("get", "/api/stats", {}),
     ],
 )
-def test_stub_endpoints_return_501(
+def test_endpoints_answer_on_an_empty_database(
     client: TestClient, method: str, path: str, kwargs: dict[str, Any]
 ) -> None:
     resp = client.request(method, path, **kwargs)
-    assert resp.status_code == 501
-    assert resp.json() == {"detail": "not implemented", "code": "not_implemented"}
+    assert resp.status_code < 500, resp.text
+    if resp.status_code >= 400:
+        assert set(resp.json()) == {"detail", "code"}
 
 
-def test_sse_stub_is_event_stream(client: TestClient) -> None:
+def test_events_for_unknown_run_is_404(client: TestClient) -> None:
     resp = client.get("/api/runs/1/events")
-    assert resp.status_code == 501
-    assert resp.headers["content-type"].startswith("text/event-stream")
+    assert resp.status_code == 404 and resp.json()["code"] == "not_found"
 
 
 def test_validation_errors_use_error_shape(client: TestClient) -> None:
@@ -325,3 +324,18 @@ def test_orm_money_and_sqlite_pragmas(client: TestClient) -> None:
     with get_engine().connect() as conn:
         assert conn.execute(text("PRAGMA journal_mode")).scalar_one() == "wal"
         assert conn.execute(text("PRAGMA foreign_keys")).scalar_one() == 1
+
+
+def test_extraction_json_round_trip_keeps_value_types() -> None:
+    """Regression: a stored extraction came back with dates and amounts as strings."""
+    from datetime import date
+    from decimal import Decimal
+
+    from app.models.extraction import InvoiceExtraction
+
+    data = json.loads((FIXTURES / "invoice_extraction.json").read_text(encoding="utf-8"))
+    ex = InvoiceExtraction.model_validate(data)
+    again = InvoiceExtraction.model_validate(ex.model_dump(mode="json"))
+    assert isinstance(again.invoice_date.value, date)
+    assert isinstance(again.total.value, Decimal)
+    assert again == ex

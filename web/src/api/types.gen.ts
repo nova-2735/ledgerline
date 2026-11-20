@@ -99,7 +99,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview Policy */
+        /**
+         * Preview Policy
+         * @description Re-run rules + decide on the latest runs' stored extractions and review overrides, under the
+         *     current policy and under the proposed one. Each run's own billing is left out of the ledger.
+         *     Nothing is persisted.
+         */
         post: operations["preview_policy"];
         delete?: never;
         options?: never;
@@ -1590,6 +1595,15 @@ export interface operations {
                     "application/json": components["schemas"]["DemoInboxItem"][];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1599,8 +1613,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1608,8 +1622,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1637,6 +1651,15 @@ export interface operations {
                     "application/json": components["schemas"]["ResetResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1646,8 +1669,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1655,8 +1678,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1690,6 +1713,15 @@ export interface operations {
                     "application/json": components["schemas"]["RunCreated"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1699,8 +1731,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1708,8 +1740,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1757,6 +1789,15 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1766,8 +1807,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1775,8 +1816,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1808,6 +1849,15 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyVersionResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1817,8 +1867,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1826,8 +1876,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1859,6 +1909,15 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyPreviewResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1868,8 +1927,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1877,8 +1936,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1909,6 +1968,15 @@ export interface operations {
                     "application/json": components["schemas"]["PurchaseOrderOut"][];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1918,8 +1986,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1927,8 +1995,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1958,6 +2026,15 @@ export interface operations {
                     "application/json": components["schemas"]["PurchaseOrderDetail"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1967,8 +2044,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1976,8 +2053,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2007,6 +2084,15 @@ export interface operations {
                     "application/json": components["schemas"]["QueueResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2016,8 +2102,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2025,8 +2111,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2063,6 +2149,15 @@ export interface operations {
                     "application/json": components["schemas"]["RunList"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2072,8 +2167,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2081,8 +2176,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2114,6 +2209,15 @@ export interface operations {
                     "application/json": components["schemas"]["RunCreated"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2123,8 +2227,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2132,8 +2236,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2163,6 +2267,15 @@ export interface operations {
                     "application/json": components["schemas"]["RunDetail"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2172,8 +2285,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2181,8 +2294,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2212,6 +2325,15 @@ export interface operations {
                     "application/json": components["schemas"]["AuditExport"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2221,8 +2343,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2230,8 +2352,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2263,6 +2385,15 @@ export interface operations {
                     "application/pdf": unknown;
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2272,8 +2403,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2281,8 +2412,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2315,6 +2446,15 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2324,8 +2464,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2333,8 +2473,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2368,6 +2508,15 @@ export interface operations {
                     "image/png": unknown;
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2377,8 +2526,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2386,8 +2535,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2421,6 +2570,15 @@ export interface operations {
                     "application/json": components["schemas"]["RunDetail"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2430,8 +2588,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2439,8 +2597,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2470,6 +2628,15 @@ export interface operations {
                     "application/json": components["schemas"]["StatsResponse"];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2479,8 +2646,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2488,8 +2655,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2517,6 +2684,15 @@ export interface operations {
                     "application/json": components["schemas"]["VendorOut"][];
                 };
             };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -2526,8 +2702,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Invalid request */
-            422: {
+            /** @description Conflict with the run's state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2535,8 +2711,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not implemented yet */
-            501: {
+            /** @description Invalid request */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

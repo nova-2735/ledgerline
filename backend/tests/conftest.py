@@ -21,6 +21,9 @@ def test_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     get_settings.cache_clear()
     reset_caches()
     yield tmp_path
+    from app.pipeline import runner
+
+    runner.shutdown()
     reset_caches()
     get_settings.cache_clear()
 
@@ -34,4 +37,5 @@ def client() -> Iterator[TestClient]:
 
 
 # Shared demo-world fixtures (generated world, loaded reference data, seeded ledger).
+from tests.helpers.seeded import api, seed_template, seeded_db  # noqa: E402, F401
 from tests.helpers.world import demo_world, seeded_world  # noqa: E402, F401

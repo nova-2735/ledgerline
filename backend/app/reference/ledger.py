@@ -79,8 +79,9 @@ class Ledger:
 
     # --- balances ---------------------------------------------------------------------------
 
-    def balances(self, po_number: str) -> list[POLineBalance]:
-        """One balance per PO line; empty when the PO does not exist."""
+    def balances(self, po_number: str, exclude_run_id: int | None = None) -> list[POLineBalance]:
+        """One balance per PO line; empty when the PO does not exist. `exclude_run_id` leaves one
+        run's own billing out (re-evaluating a finished run)."""
         po = self.session.get(PurchaseOrderRow, po_number)
         if po is None:
             return []
@@ -97,6 +98,8 @@ class Ledger:
             InvoiceLedgerRow.final_outcome == Outcome.APPROVE.value,
         )
         for row in self.session.scalars(approved.order_by(InvoiceLedgerRow.run_id)):
+            if row.run_id == exclude_run_id:
+                continue
             for b in _entry(row).billed_lines:
                 billed[b.po_line_no] += b.qty
                 if row.run_id not in invoices[b.po_line_no]:
@@ -120,8 +123,10 @@ class Ledger:
             )
         return out
 
-    def balance_map(self, po_number: str) -> dict[int, POLineBalance]:
-        return {b.line_no: b for b in self.balances(po_number)}
+    def balance_map(
+        self, po_number: str, exclude_run_id: int | None = None
+    ) -> dict[int, POLineBalance]:
+        return {b.line_no: b for b in self.balances(po_number, exclude_run_id)}
 
     # --- writing ----------------------------------------------------------------------------
 

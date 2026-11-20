@@ -44,6 +44,13 @@ def _write_copy(path: Path, data: bytes) -> None:
     os.replace(tmp, path)
 
 
+def ensure_file(sha256: str, data: bytes) -> Path:
+    """The on-disk copy of a stored document, rewritten from the database if it went missing."""
+    path = upload_path(sha256)
+    _write_copy(path, data)
+    return path
+
+
 def _to_stored(row: DocumentRow, created: bool) -> StoredDocument:
     return StoredDocument(
         id=row.id,

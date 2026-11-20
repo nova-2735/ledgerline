@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from decimal import Decimal
+from typing import Any, Literal
+
+from pydantic import field_serializer, model_validator
 
 from app.enums import ConfidenceLevel, DocKind, DocType
 from app.models.common import Dec, Model, Money, StrictModel, UtcDatetime
@@ -86,6 +89,15 @@ class FieldValue(Model):
     bbox: list[BBox]
     notes: list[str]
 
+    @field_serializer("value", when_used="json")
+    def _value_json(self, value: str | Decimal | date | None) -> str | None:
+        # The union would otherwise run Dec's serializer on dates.
+        if isinstance(value, Decimal):
+            return format(value, "f")
+        if isinstance(value, date):
+            return value.isoformat()
+        return value
+
 
 class LineItem(Model):
     index: int
@@ -154,6 +166,25 @@ class InvoiceExtraction(Model):
     bank_name: FieldValue
     annotations: list[str]
     meta: ExtractionMeta
+
+    @model_validator(mode="before")
+    @classmethod
+    def _restore_value_types(cls, data: Any) -> Any:
+        """`FieldValue.value` is a union, so JSON brings dates and amounts back as strings;
+        type them first so a stored extraction behaves exactly like a fresh one."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        for names, parse in ((DATE_FIELDS, date.fromisoformat), (AMOUNT_FIELDS, Decimal)):
+            for name in names:
+                fv = data.get(name)
+                if isinstance(fv, dict) and isinstance(fv.get("value"), str):
+                    data[name] = {**fv, "value": parse(fv["value"])}
+        return data
+
+
+DATE_FIELDS = ("invoice_date", "due_date")
+AMOUNT_FIELDS = ("subtotal", "round_off", "total", "amount_in_words")
 
 
 # --- Reader output (produced by ingest/reader.py) ---

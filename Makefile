@@ -52,10 +52,10 @@ generate:
 	$(UV_RUN) python -m app.demo.generate --out "$(CURDIR)/data/demo"
 
 seed:
-	@echo "make seed: available after B08"
+	$(UV_RUN) python -m app.demo.seed
 
 reset:
-	@echo "make reset: available after B08"
+	$(UV_RUN) python -m app.demo.seed --regenerate
 
 openapi:
 	$(UV_RUN) python -m app.cli export-openapi

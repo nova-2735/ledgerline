@@ -28,6 +28,7 @@ def get_engine() -> Engine:
     if is_sqlite:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         connect_args["check_same_thread"] = False
+        connect_args["timeout"] = 30
     engine = create_engine(url, connect_args=connect_args)
     if is_sqlite:
         event.listen(engine, "connect", _sqlite_pragmas)

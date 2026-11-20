@@ -76,6 +76,23 @@ def approval_check(
     return A01.passed("Within the auto-approval limit", f"{inr(total)} is within {inr(limit)}.")
 
 
+# Follow-up a reviewer's resolution leaves behind, shown as a note on the decision.
+FOLLOW_UP = {
+    ReasonCode.BANK_DETAILS_CHANGED: (
+        "Bank details confirmed by call-back: update vendor master via change control before "
+        "the payment run. Payment goes to the account on file."
+    ),
+}
+
+
+def follow_ups(checks: list[CheckResult]) -> list[str]:
+    return [
+        FOLLOW_UP[c.code]
+        for c in checks
+        if c.status == CheckStatus.fail and c.resolved_by_review and c.code in FOLLOW_UP
+    ]
+
+
 def group_rank(c: CheckResult) -> int:
     if c.status == CheckStatus.warn:
         return 5
@@ -177,7 +194,7 @@ def evaluate(
         headline=headline,
         primary_reason=primary_check.code if primary_check else None,
         reasons=reasons,
-        notes=[c.message for c in warnings],
+        notes=[c.message for c in warnings] + follow_ups(checks),
         handoff=handoff,
         explanation=explanation,
         posting=posting,
