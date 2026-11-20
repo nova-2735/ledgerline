@@ -17,3 +17,9 @@
 - Intake: PDFs with only an owner password (no user password) are also rejected as `encrypted`.
 - Reader: a page is `scanned` only when it has < 30 characters of text and images covering > 50% of it; a blank page counts as digital. `read_bytes()` sits beside `read_document(path)` for in-memory reads.
 - OCR: Tesseract is found on PATH or at the default Windows install folders; with `OCR_ENABLED=1` and no Tesseract, reading a scanned page raises `OCRUnavailableError`.
+- Confidence: the `date_valid` validator passes for any date that parses under the DMY rule; an ambiguous day/month only adds a note (otherwise numeric dates such as S01's 12/11/2026 could never reach high confidence).
+- Confidence: fields without a validator in CONTRACTS §11 get these — subtotal = sum of lines, round-off and total = arithmetic, amount in words = matches total, buyer GSTIN = checksum, IFSC = format; plain text fields (names, phone, PO reference) have none and top out at medium.
+- Extraction: a line that doesn't print its own tax rate takes the document's single effective GST rate (IGST, or CGST + SGST); `TaxSummary.rates_pct` lists effective GST rates (CGST 9% + SGST 9% → 18).
+- Extraction: `extract()` returns `ExtractResult(extraction, events, detail)`; events are `stage.log` drafts that the pipeline numbers and timestamps.
+- LLM: cache hits keep the original token counts with `cached=true`; the hourly budget counts only live (non-fake) calls, per process; Gemini output tokens include thinking tokens.
+- LLM: the fake provider's `map_lines` returns no suggestions and `polish` returns the summary unchanged.

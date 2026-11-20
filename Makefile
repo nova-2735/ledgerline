@@ -64,10 +64,11 @@ types:
 	cd $(WEB) && npm run gen:types
 
 models:
-	@echo "make models: available after B04"
+	$(UV_RUN) python -m app.cli models
 
 extract:
-	@echo "make extract: available after B04"
+	@test -n "$(FILE)" || { echo "usage: make extract FILE=path/to.pdf"; exit 2; }
+	$(UV_RUN) python -m app.cli extract "$(abspath $(FILE))" $(ARGS)
 
 eval:
 	@echo "make eval: available after B12"
