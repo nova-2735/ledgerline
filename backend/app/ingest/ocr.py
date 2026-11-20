@@ -13,7 +13,9 @@ from PIL import Image
 from app.config import OCRMode, get_settings
 from app.models.extraction import BBox, Word
 
-OCR_DPI = 300
+# Rasterise a scan at its own resolution, kept between these bounds: upsampling a 150 dpi scan
+# to 300 dpi costs about twice the OCR time and finds no more words.
+MIN_OCR_DPI, MAX_OCR_DPI = 150, 300
 MIN_CONF = 0.3
 _WINDOWS_PATHS = (
     Path("C:/Program Files/Tesseract-OCR/tesseract.exe"),
@@ -54,14 +56,25 @@ def should_ocr() -> bool:
     return True
 
 
+def ocr_dpi(page: pymupdf.Page) -> int:
+    """The resolution of the page's largest image, clamped to [MIN_OCR_DPI, MAX_OCR_DPI]."""
+    best = 0.0
+    for info in page.get_image_info():
+        width_pt = info["bbox"][2] - info["bbox"][0]
+        if width_pt > 0 and info.get("width"):
+            best = max(best, info["width"] / width_pt * 72)
+    return int(min(MAX_OCR_DPI, max(MIN_OCR_DPI, round(best))))
+
+
 def ocr_page(page: pymupdf.Page, index: int) -> list[Word]:
     """Words with normalised boxes (0–1, top-left origin) and confidence 0–1."""
     cmd = tesseract_path()
     if cmd is None:
         raise OCRUnavailableError("Tesseract is not installed")
     pytesseract.pytesseract.tesseract_cmd = cmd
-    pix = page.get_pixmap(dpi=OCR_DPI, alpha=False)
-    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    # Greyscale: a third of the pixels to encode and hand over, about a third less OCR time.
+    pix = page.get_pixmap(dpi=ocr_dpi(page), alpha=False, colorspace=pymupdf.csGRAY)
+    img = Image.frombytes("L", (pix.width, pix.height), pix.samples)
     data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
     w, h = float(pix.width), float(pix.height)
     words: list[Word] = []

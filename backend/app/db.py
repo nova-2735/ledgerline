@@ -15,6 +15,9 @@ from app.config import get_settings
 def _sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
+    # In WAL mode NORMAL is still safe against corruption and application crashes; it skips the
+    # fsync on every commit (a run commits ~45 times), syncing at checkpoints instead.
+    cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 

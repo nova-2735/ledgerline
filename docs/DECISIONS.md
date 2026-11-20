@@ -124,3 +124,15 @@ local snapshot records a fingerprint of the code, prompts, policy, specs and wor
 once any of them changes; with no current snapshot, or if the restore fails, the reset reseeds.
 **Trade-off.** One extra copy of a few-MB database on disk, and the fingerprint is coarse: any
 code edit means the next local reset is a slow reseed.
+
+## 14. Keep setup and CPU work off the run path
+
+**Context.** On the free 0.1 vCPU instance a run took several times longer than its model calls.
+The first live run in a process paid for importing the model SDK and building a client (about
+8 s), every run opened a new connection, and OCR rasterised scans at 300 dpi in colour.
+**Decision.** One live model client per process, built in a background thread at startup and
+shared by all runs; OCR at the scan's own resolution (150 to 300 dpi) in greyscale; the PDF opened
+once per read; SQLite `synchronous=NORMAL` in WAL mode. Measurements are in `docs/PERFORMANCE.md`.
+**Trade-off.** The warm-up spends CPU right after boot, competing with the first requests on a
+tiny instance. With `synchronous=NORMAL` an OS crash or power cut can lose the last few commits
+(never corrupt the database); an app crash loses nothing.
