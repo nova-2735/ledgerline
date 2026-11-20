@@ -88,3 +88,7 @@ docker-run:
 
 smoke:
 	$(UV_RUN) python "$(CURDIR)/scripts/smoke.py" --base-url "$(BASE_URL)" --access-code "$(ACCESS_CODE)"
+
+.PHONY: e2e
+e2e:
+	cd $(WEB) && node e2e/run.mjs
