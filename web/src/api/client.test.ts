@@ -7,8 +7,12 @@ function mockFetch(status: number, body: unknown) {
 }
 
 describe('api client', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_USE_MOCKS', '0')
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     setAccessCode(null)
   })
 

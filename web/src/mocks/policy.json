@@ -1,0 +1,28 @@
+{
+  "version": "v1",
+  "path": "default_policy.yaml",
+  "policy": {
+    "tolerances": {
+      "unit_price_pct": "2",
+      "header_pct": "2",
+      "header_abs": "2500.00"
+    },
+    "approval": {
+      "auto_approve_limit": "500000.00"
+    },
+    "po_inference": {
+      "min_score": "0.85",
+      "min_gap": "0.15"
+    },
+    "duplicates": {
+      "lookback_days": 365
+    },
+    "extraction": {
+      "confidence_threshold": "0.80"
+    },
+    "dates": {
+      "stale_days": 90,
+      "future_days": 0
+    }
+  }
+}

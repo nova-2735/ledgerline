@@ -1,0 +1,893 @@
+{
+  "id": 28,
+  "display_id": "R-0028",
+  "created_at": "2026-11-18T19:02:00+05:30",
+  "source": "demo",
+  "filename": "S04-scanned-invoice-with-no-po-number.pdf",
+  "scenario_id": "S04",
+  "sender_name": "Rao & Sons Electricals",
+  "sender_email": "raoandsons.electricals@mail.example",
+  "subject": "bill",
+  "status": "awaiting_review",
+  "vendor_id": "V004",
+  "vendor_name": "Rao & Sons Electricals",
+  "invoice_number": "RSE/0457",
+  "invoice_date": "2026-11-18",
+  "total": "43306.00",
+  "po_number": "KF-PO-0151",
+  "outcome": "HOLD",
+  "route": "ap_clerk",
+  "primary_reason": "PO_INFERRED",
+  "final_outcome": null,
+  "duration_ms": 6390,
+  "doc_kind": "scanned",
+  "cached_extraction": false,
+  "stages": [
+    {
+      "name": "intake",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:00.060Z",
+      "finished_at": "2026-11-18T13:32:00.140Z",
+      "duration_ms": 80,
+      "summary": "Invoice received and queued.",
+      "check_rule_ids": [],
+      "detail": {
+        "filename": "S04-scanned-invoice-with-no-po-number.pdf",
+        "source": "demo"
+      }
+    },
+    {
+      "name": "read_document",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:00.180Z",
+      "finished_at": "2026-11-18T13:32:00.530Z",
+      "duration_ms": 350,
+      "summary": "Read one page of the invoice.",
+      "check_rule_ids": [],
+      "detail": {
+        "page_count": 1,
+        "doc_kind": "scanned",
+        "ocr_used": true
+      }
+    },
+    {
+      "name": "extract_fields",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:00.570Z",
+      "finished_at": "2026-11-18T13:32:04.570Z",
+      "duration_ms": 4000,
+      "summary": "Read invoice header and line items.",
+      "check_rule_ids": [],
+      "detail": {
+        "provider": "fake",
+        "model": "mock-reader",
+        "prompt_id": "invoice_text",
+        "prompt_version": "1",
+        "latency_ms": 4000,
+        "input_tokens": 1280,
+        "output_tokens": 460,
+        "cached": false,
+        "confidence": 0.85
+      }
+    },
+    {
+      "name": "validate_document",
+      "status": "warned",
+      "started_at": "2026-11-18T13:32:04.610Z",
+      "finished_at": "2026-11-18T13:32:04.790Z",
+      "duration_ms": 180,
+      "summary": "Check the printed invoice number against the scanned page.",
+      "check_rule_ids": [
+        "document.total",
+        "fields.confidence"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "identify_vendor",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:04.830Z",
+      "finished_at": "2026-11-18T13:32:05.000Z",
+      "duration_ms": 170,
+      "summary": "Vendor matched to the vendor master.",
+      "check_rule_ids": [
+        "vendor.identity"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_tax",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:05.040Z",
+      "finished_at": "2026-11-18T13:32:05.230Z",
+      "duration_ms": 190,
+      "summary": "GST type, rates and amounts checked.",
+      "check_rule_ids": [
+        "tax.rate"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "resolve_po",
+      "status": "failed",
+      "started_at": "2026-11-18T13:32:05.270Z",
+      "finished_at": "2026-11-18T13:32:05.460Z",
+      "duration_ms": 190,
+      "summary": "The invoice contains no printed PO number.",
+      "check_rule_ids": [
+        "po.inferred"
+      ],
+      "detail": {
+        "po_number": "KF-PO-0151",
+        "candidates": [
+          {
+            "po_number": "KF-PO-0151",
+            "score": 0.91,
+            "reason": "Same vendor, item descriptions and quantities.",
+            "components": {
+              "vendor": 1,
+              "description": 0.94,
+              "quantity": 0.95
+            }
+          },
+          {
+            "po_number": "KF-PO-0110",
+            "score": 0.42,
+            "reason": "Same items, with no unbilled quantity.",
+            "components": {
+              "vendor": 1,
+              "description": 0.89,
+              "quantity": 0
+            }
+          },
+          {
+            "po_number": "KF-PO-0128",
+            "score": 0.35,
+            "reason": "Same vendor, different items.",
+            "components": {
+              "vendor": 1,
+              "description": 0.12,
+              "quantity": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "match_lines",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:05.500Z",
+      "finished_at": "2026-11-18T13:32:05.700Z",
+      "duration_ms": 200,
+      "summary": "Invoice lines checked against the order and receipts.",
+      "check_rule_ids": [
+        "match.quantities"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_duplicates",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:05.740Z",
+      "finished_at": "2026-11-18T13:32:05.920Z",
+      "duration_ms": 180,
+      "summary": "No earlier copy found.",
+      "check_rule_ids": [
+        "duplicate.invoice"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "decide",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:05.960Z",
+      "finished_at": "2026-11-18T13:32:06.130Z",
+      "duration_ms": 170,
+      "summary": "Decision recorded.",
+      "check_rule_ids": [],
+      "detail": {}
+    },
+    {
+      "name": "explain_route",
+      "status": "passed",
+      "started_at": "2026-11-18T13:32:06.170Z",
+      "finished_at": "2026-11-18T13:32:06.350Z",
+      "duration_ms": 180,
+      "summary": "Decision explanation prepared.",
+      "check_rule_ids": [],
+      "detail": {}
+    }
+  ],
+  "checks": [
+    {
+      "stage": "validate_document",
+      "rule_id": "document.total",
+      "title": "Invoice arithmetic",
+      "message": "Invoice lines, tax and total reconcile.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "validate_document",
+      "rule_id": "fields.confidence",
+      "title": "Field verification",
+      "message": "Check the printed invoice number against the scanned page.",
+      "status": "warn",
+      "code": "FIELD_LOW_CONFIDENCE",
+      "severity": "medium",
+      "evidence": {
+        "fields": [
+          "invoice_number"
+        ]
+      },
+      "amount_at_risk": null,
+      "route": "ap_clerk",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.identity",
+      "title": "Vendor record",
+      "message": "Supplier details match the vendor master.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_tax",
+      "rule_id": "tax.rate",
+      "title": "GST rate",
+      "message": "IGST of 18% reconciles with the taxable amount.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "resolve_po",
+      "rule_id": "po.inferred",
+      "title": "Purchase order suggested",
+      "message": "The invoice contains no printed PO number.",
+      "status": "fail",
+      "code": "PO_INFERRED",
+      "severity": "medium",
+      "evidence": {
+        "candidate": "KF-PO-0151"
+      },
+      "amount_at_risk": null,
+      "route": "ap_clerk",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "match_lines",
+      "rule_id": "match.quantities",
+      "title": "Invoice quantities",
+      "message": "Billed quantities match the order and available receipts.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_duplicates",
+      "rule_id": "duplicate.invoice",
+      "title": "Duplicate invoice",
+      "message": "No previous invoice with the same number was found.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    }
+  ],
+  "extraction": {
+    "doc_type": "tax_invoice",
+    "doc_kind": "scanned",
+    "legibility": "partly_legible",
+    "currency": "INR",
+    "invoice_number": {
+      "value": "RSE/0457",
+      "raw": "RSE/0457",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.2,
+          "x1": 0.55,
+          "y1": 0.226
+        }
+      ],
+      "confidence": 0.48,
+      "level": "low",
+      "grounded": "fuzzy",
+      "notes": [
+        "Check the original scan."
+      ],
+      "validators": []
+    },
+    "invoice_number_canonical": "0457",
+    "invoice_date": {
+      "value": "2026-11-18",
+      "raw": "18/11/2026",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.23,
+          "x1": 0.55,
+          "y1": 0.256
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "due_date": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_name": {
+      "value": "Rao & Sons Electricals",
+      "raw": "Rao & Sons Electricals",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.09,
+          "x1": 0.55,
+          "y1": 0.11599999999999999
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_gstin": {
+      "value": "36AAXFR8190D1Z8",
+      "raw": "36AAXFR8190D1Z8",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.12,
+          "x1": 0.55,
+          "y1": 0.146
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_phone": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_name": {
+      "value": "Kaveri Foods Pvt. Ltd.",
+      "raw": "Kaveri Foods Pvt. Ltd.",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.31,
+          "x1": 0.55,
+          "y1": 0.336
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_gstin": {
+      "value": "29AAECK2214F1Z5",
+      "raw": "29AAECK2214F1Z5",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.34,
+          "x1": 0.55,
+          "y1": 0.36600000000000005
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference_canonical": null,
+    "place_of_supply": {
+      "value": "Karnataka",
+      "raw": "Karnataka",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.37,
+          "x1": 0.55,
+          "y1": 0.396
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_name": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "bank_account_number": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "bank_ifsc": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "subtotal": {
+      "value": "36700.00",
+      "raw": "36700.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.6,
+          "x1": 0.55,
+          "y1": 0.626
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "total": {
+      "value": "43306.00",
+      "raw": "43,306/-",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.69,
+          "x1": 0.55,
+          "y1": 0.716
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "round_off": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "amount_in_words": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "other_charges_total": "0.00",
+    "tax": {
+      "kind": "inter",
+      "cgst": "0.00",
+      "igst": "6606.00",
+      "sgst": "0.00",
+      "other": "0.00",
+      "rates_pct": [
+        "18"
+      ],
+      "total_tax": "6606.00"
+    },
+    "prices_include_tax": false,
+    "annotations": [
+      "Recd OK"
+    ],
+    "line_items": [
+      {
+        "index": 1,
+        "item_code": null,
+        "description": "Copper wire 2.5mm FRLS 90 mtr",
+        "quantity": "10",
+        "uom": "Coil",
+        "unit_price": "2850.00",
+        "amount": "28500.00",
+        "taxable_amount": "28500.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.45,
+            "x1": 0.9,
+            "y1": 0.47600000000000003
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "item_code": null,
+        "description": "MCB 32 Amp DP",
+        "quantity": "20",
+        "uom": "Nos",
+        "unit_price": "410.00",
+        "amount": "8200.00",
+        "taxable_amount": "8200.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.49,
+            "x1": 0.9,
+            "y1": 0.516
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "cached": false,
+      "cached_at": null,
+      "input_tokens": 1280,
+      "output_tokens": 460,
+      "latency_ms": 4000,
+      "model": "mock-reader",
+      "prompt_id": "invoice_text",
+      "prompt_version": "1",
+      "provider": "fake",
+      "raw": {
+        "amount_in_words": null,
+        "annotations": [
+          "Recd OK"
+        ],
+        "bank_account_name": null,
+        "bank_account_number": null,
+        "bank_ifsc": null,
+        "bank_name": null,
+        "buyer_gstin": "29AAECK2214F1Z5",
+        "buyer_name": "Kaveri Foods Pvt. Ltd.",
+        "currency": "INR",
+        "document_title": "TAX INVOICE",
+        "document_type": "tax_invoice",
+        "due_date": null,
+        "invoice_date": "18/11/2026",
+        "invoice_number": "RSE/0457",
+        "legibility": "partly_legible",
+        "line_items": [
+          {
+            "amount": "28500.00",
+            "description": "Copper wire 2.5mm FRLS 90 mtr",
+            "hsn_sac": null,
+            "item_code": null,
+            "quantity": "10",
+            "tax_rate": "18",
+            "unit_price": "2850.00",
+            "uom": "Coil"
+          },
+          {
+            "amount": "8200.00",
+            "description": "MCB 32 Amp DP",
+            "hsn_sac": null,
+            "item_code": null,
+            "quantity": "20",
+            "tax_rate": "18",
+            "unit_price": "410.00",
+            "uom": "Nos"
+          }
+        ],
+        "other_charges": [],
+        "place_of_supply": "Karnataka",
+        "po_reference": null,
+        "prices_include_tax": false,
+        "round_off": null,
+        "subtotal": "36700.00",
+        "supplier_address": null,
+        "supplier_email": "raoandsons.electricals@mail.example",
+        "supplier_gstin": "36AAXFR8190D1Z8",
+        "supplier_name": "Rao & Sons Electricals",
+        "supplier_phone": null,
+        "tax_lines": [
+          {
+            "tax_type": "IGST",
+            "rate": "18",
+            "amount": "6606.00"
+          }
+        ],
+        "total": "43,306/-"
+      }
+    }
+  },
+  "decision": {
+    "version": 1,
+    "outcome": "HOLD",
+    "primary_reason": "PO_INFERRED",
+    "reasons": [
+      "PO_INFERRED",
+      "FIELD_LOW_CONFIDENCE"
+    ],
+    "route": "ap_clerk",
+    "headline": "Hold for review",
+    "final": false,
+    "decided_at": "2026-11-18T13:32:06.130Z",
+    "policy_version": "v1",
+    "checks_summary": {
+      "pass": 5,
+      "warn": 1,
+      "fail": 1,
+      "skip": 0
+    },
+    "notes": [],
+    "handoff": {
+      "owner": "ap_clerk",
+      "question": "Does this invoice belong to KF-PO-0151?",
+      "suggested_action": "Confirm the purchase order and verify the highlighted fields on the scan.",
+      "actions": [
+        "confirm_po",
+        "correct_fields",
+        "reject"
+      ],
+      "blocking_codes": [
+        "PO_INFERRED",
+        "FIELD_LOW_CONFIDENCE"
+      ],
+      "amount_at_risk": null
+    },
+    "explanation": {
+      "summary": "The invoice has no PO number. The AP team should confirm the suggested order and review the scan.",
+      "bullets": [
+        "Check the printed invoice number against the scanned page.",
+        "The invoice contains no printed PO number."
+      ],
+      "generated_by": "template",
+      "model": null,
+      "vendor_message": null,
+      "internal_note": {
+        "channel": "internal",
+        "to": "ap_clerk",
+        "subject": "Does this invoice belong to KF-PO-0151?",
+        "body": "Confirm the purchase order and verify the highlighted fields on the scan."
+      }
+    },
+    "posting": null
+  },
+  "decision_history": [
+    {
+      "version": 1,
+      "outcome": "HOLD",
+      "primary_reason": "PO_INFERRED",
+      "reasons": [
+        "PO_INFERRED",
+        "FIELD_LOW_CONFIDENCE"
+      ],
+      "route": "ap_clerk",
+      "headline": "Hold for review",
+      "final": false,
+      "decided_at": "2026-11-18T13:32:06.130Z",
+      "policy_version": "v1",
+      "checks_summary": {
+        "pass": 5,
+        "warn": 1,
+        "fail": 1,
+        "skip": 0
+      },
+      "notes": [],
+      "handoff": {
+        "owner": "ap_clerk",
+        "question": "Does this invoice belong to KF-PO-0151?",
+        "suggested_action": "Confirm the purchase order and verify the highlighted fields on the scan.",
+        "actions": [
+          "confirm_po",
+          "correct_fields",
+          "reject"
+        ],
+        "blocking_codes": [
+          "PO_INFERRED",
+          "FIELD_LOW_CONFIDENCE"
+        ],
+        "amount_at_risk": null
+      },
+      "explanation": {
+        "summary": "The invoice has no PO number. The AP team should confirm the suggested order and review the scan.",
+        "bullets": [
+          "Check the printed invoice number against the scanned page.",
+          "The invoice contains no printed PO number."
+        ],
+        "generated_by": "template",
+        "model": null,
+        "vendor_message": null,
+        "internal_note": {
+          "channel": "internal",
+          "to": "ap_clerk",
+          "subject": "Does this invoice belong to KF-PO-0151?",
+          "body": "Confirm the purchase order and verify the highlighted fields on the scan."
+        }
+      },
+      "posting": null
+    }
+  ],
+  "review_actions": [],
+  "page_count": 1,
+  "file_sha256": "0404040404040404040404040404040404040404040404040404040404040404",
+  "matching": {
+    "po_number": "KF-PO-0151",
+    "match_type": "three_way",
+    "po_candidates": [
+      {
+        "po_number": "KF-PO-0151",
+        "score": 0.91,
+        "reason": "Same vendor, item descriptions and quantities.",
+        "components": {
+          "vendor": 1,
+          "description": 0.94,
+          "quantity": 0.95
+        }
+      },
+      {
+        "po_number": "KF-PO-0110",
+        "score": 0.42,
+        "reason": "Same items, with no unbilled quantity.",
+        "components": {
+          "vendor": 1,
+          "description": 0.89,
+          "quantity": 0
+        }
+      },
+      {
+        "po_number": "KF-PO-0128",
+        "score": 0.35,
+        "reason": "Same vendor, different items.",
+        "components": {
+          "vendor": 1,
+          "description": 0.12,
+          "quantity": 0
+        }
+      }
+    ],
+    "header_expected": "43306.00",
+    "header_invoiced": "43306.00",
+    "header_variance": "0.00",
+    "rows": [
+      {
+        "kind": "one_to_one",
+        "matched_by": "fuzzy",
+        "description_invoice": "Copper wire 2.5mm FRLS 90 mtr",
+        "description_po": "Copper wire 2.5mm FRLS 90 mtr",
+        "invoice_line_indexes": [
+          1
+        ],
+        "po_line_nos": [
+          1
+        ],
+        "similarity": 0.94,
+        "qty_invoiced": "10",
+        "qty_ordered": "10",
+        "qty_received": "10",
+        "qty_billed_before": "0",
+        "qty_available": "10",
+        "unit_price_invoice": "2850.00",
+        "unit_price_po": "2850.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "28500.00",
+        "amount_invoice": "28500.00",
+        "status": "pass",
+        "codes": []
+      },
+      {
+        "kind": "one_to_one",
+        "matched_by": "fuzzy",
+        "description_invoice": "MCB 32 Amp DP",
+        "description_po": "MCB 32 Amp DP",
+        "invoice_line_indexes": [
+          2
+        ],
+        "po_line_nos": [
+          2
+        ],
+        "similarity": 0.94,
+        "qty_invoiced": "20",
+        "qty_ordered": "20",
+        "qty_received": "20",
+        "qty_billed_before": "0",
+        "qty_available": "20",
+        "unit_price_invoice": "410.00",
+        "unit_price_po": "410.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "8200.00",
+        "amount_invoice": "8200.00",
+        "status": "pass",
+        "codes": []
+      }
+    ]
+  },
+  "policy_version": "v1"
+}

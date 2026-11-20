@@ -48,24 +48,24 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    --background: #f8fafc;
+    --foreground: #0f172a;
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    --primary: #4f46e5;
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
+    --muted: #f1f5f9;
+    --muted-foreground: #475569;
+    --accent: #eef2ff;
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --border: #e2e8f0;
+    --input: #cbd5e1;
+    --ring: #6366f1;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -80,6 +80,21 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_#0f172a08];
+  }
+  .status-chip {
+    @apply inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs leading-5 font-medium [&_svg]:size-3.5;
+  }
+  .page-title {
+    @apply text-[1.8rem] leading-tight font-semibold tracking-tight text-slate-900;
+  }
+  .section-title {
+    @apply text-base leading-6 font-semibold tracking-tight text-slate-900;
+  }
 }
 
 .dark {

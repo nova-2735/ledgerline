@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "app_env": "test",
+  "llm_provider": "fake",
+  "llm_model": "mock-reader",
+  "llm_model_light": "mock-reader",
+  "ocr_available": true,
+  "db": "ok",
+  "today": "2026-11-19"
+}

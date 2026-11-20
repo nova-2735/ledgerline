@@ -1,0 +1,884 @@
+{
+  "id": 30,
+  "display_id": "R-0030",
+  "created_at": "2026-11-16T15:48:00+05:30",
+  "source": "demo",
+  "filename": "S06-bank-details-changed.pdf",
+  "scenario_id": "S06",
+  "sender_name": "Vertex Lab Instruments",
+  "sender_email": "accounts@vertexlab-instruments.example",
+  "subject": "Invoice VLI/26-27/0311 — please note updated bank details",
+  "status": "awaiting_review",
+  "vendor_id": "V007",
+  "vendor_name": "Vertex Lab Instruments",
+  "invoice_number": "VLI/26-27/0311",
+  "invoice_date": "2026-11-16",
+  "total": "52510.00",
+  "po_number": "KF-PO-0146",
+  "outcome": "HOLD",
+  "route": "treasury",
+  "primary_reason": "BANK_DETAILS_CHANGED",
+  "final_outcome": null,
+  "duration_ms": 6390,
+  "doc_kind": "digital",
+  "cached_extraction": false,
+  "stages": [
+    {
+      "name": "intake",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:00.060Z",
+      "finished_at": "2026-11-16T10:18:00.140Z",
+      "duration_ms": 80,
+      "summary": "Invoice received and queued.",
+      "check_rule_ids": [],
+      "detail": {
+        "filename": "S06-bank-details-changed.pdf",
+        "source": "demo"
+      }
+    },
+    {
+      "name": "read_document",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:00.180Z",
+      "finished_at": "2026-11-16T10:18:00.530Z",
+      "duration_ms": 350,
+      "summary": "Read one page of the invoice.",
+      "check_rule_ids": [],
+      "detail": {
+        "page_count": 1,
+        "doc_kind": "digital",
+        "ocr_used": false
+      }
+    },
+    {
+      "name": "extract_fields",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:00.570Z",
+      "finished_at": "2026-11-16T10:18:04.570Z",
+      "duration_ms": 4000,
+      "summary": "Read invoice header and line items.",
+      "check_rule_ids": [],
+      "detail": {
+        "provider": "fake",
+        "model": "mock-reader",
+        "prompt_id": "invoice_text",
+        "prompt_version": "1",
+        "latency_ms": 4000,
+        "input_tokens": 1280,
+        "output_tokens": 460,
+        "cached": false
+      }
+    },
+    {
+      "name": "validate_document",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:04.610Z",
+      "finished_at": "2026-11-16T10:18:04.790Z",
+      "duration_ms": 180,
+      "summary": "Invoice totals and required fields checked.",
+      "check_rule_ids": [
+        "document.total"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "identify_vendor",
+      "status": "failed",
+      "started_at": "2026-11-16T10:18:04.830Z",
+      "finished_at": "2026-11-16T10:18:05.000Z",
+      "duration_ms": 170,
+      "summary": "The bank account on the invoice differs from the vendor master. The sender domain differs from the address on file.",
+      "check_rule_ids": [
+        "vendor.identity",
+        "vendor.bank",
+        "vendor.sender"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_tax",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:05.040Z",
+      "finished_at": "2026-11-16T10:18:05.230Z",
+      "duration_ms": 190,
+      "summary": "GST type, rates and amounts checked.",
+      "check_rule_ids": [
+        "tax.rate"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "resolve_po",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:05.270Z",
+      "finished_at": "2026-11-16T10:18:05.460Z",
+      "duration_ms": 190,
+      "summary": "Purchase order identified.",
+      "check_rule_ids": [
+        "po.reference"
+      ],
+      "detail": {
+        "po_number": "KF-PO-0146",
+        "candidates": []
+      }
+    },
+    {
+      "name": "match_lines",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:05.500Z",
+      "finished_at": "2026-11-16T10:18:05.700Z",
+      "duration_ms": 200,
+      "summary": "Invoice lines checked against the order and receipts.",
+      "check_rule_ids": [
+        "match.quantities"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_duplicates",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:05.740Z",
+      "finished_at": "2026-11-16T10:18:05.920Z",
+      "duration_ms": 180,
+      "summary": "No earlier copy found.",
+      "check_rule_ids": [
+        "duplicate.invoice"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "decide",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:05.960Z",
+      "finished_at": "2026-11-16T10:18:06.130Z",
+      "duration_ms": 170,
+      "summary": "Decision recorded.",
+      "check_rule_ids": [],
+      "detail": {}
+    },
+    {
+      "name": "explain_route",
+      "status": "passed",
+      "started_at": "2026-11-16T10:18:06.170Z",
+      "finished_at": "2026-11-16T10:18:06.350Z",
+      "duration_ms": 180,
+      "summary": "Decision explanation prepared.",
+      "check_rule_ids": [],
+      "detail": {}
+    }
+  ],
+  "checks": [
+    {
+      "stage": "validate_document",
+      "rule_id": "document.total",
+      "title": "Invoice arithmetic",
+      "message": "Invoice lines, tax and total reconcile.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.identity",
+      "title": "Vendor record",
+      "message": "Supplier details match the vendor master.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.bank",
+      "title": "Bank account",
+      "message": "The bank account on the invoice differs from the vendor master.",
+      "status": "fail",
+      "code": "BANK_DETAILS_CHANGED",
+      "severity": "critical",
+      "evidence": {
+        "invoice_bank": "YES Bank",
+        "invoice_account": "****8901",
+        "master_bank": "HDFC Bank",
+        "master_account": "****2741",
+        "phone_on_file": "+91 79 2658 3300"
+      },
+      "amount_at_risk": "52510.00",
+      "route": "treasury",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.sender",
+      "title": "Sender address",
+      "message": "The sender domain differs from the address on file.",
+      "status": "warn",
+      "code": "SENDER_DOMAIN_MISMATCH",
+      "severity": "medium",
+      "evidence": {
+        "invoice_domain": "vertexlab-instruments.example",
+        "master_domain": "vertexlab.example"
+      },
+      "amount_at_risk": null,
+      "route": "treasury",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_tax",
+      "rule_id": "tax.rate",
+      "title": "GST rate",
+      "message": "IGST of 18% reconciles with the taxable amount.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "resolve_po",
+      "rule_id": "po.reference",
+      "title": "Purchase order reference",
+      "message": "The invoice refers to KF-PO-0146.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "match_lines",
+      "rule_id": "match.quantities",
+      "title": "Invoice quantities",
+      "message": "Billed quantities match the order and available receipts.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_duplicates",
+      "rule_id": "duplicate.invoice",
+      "title": "Duplicate invoice",
+      "message": "No previous invoice with the same number was found.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    }
+  ],
+  "extraction": {
+    "doc_type": "tax_invoice",
+    "doc_kind": "digital",
+    "legibility": "clear",
+    "currency": "INR",
+    "invoice_number": {
+      "value": "VLI/26-27/0311",
+      "raw": "VLI/26-27/0311",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.2,
+          "x1": 0.55,
+          "y1": 0.226
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "invoice_number_canonical": "26270311",
+    "invoice_date": {
+      "value": "2026-11-16",
+      "raw": "16/11/2026",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.23,
+          "x1": 0.55,
+          "y1": 0.256
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "due_date": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_name": {
+      "value": "Vertex Lab Instruments",
+      "raw": "Vertex Lab Instruments",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.09,
+          "x1": 0.55,
+          "y1": 0.11599999999999999
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_gstin": {
+      "value": "24AAFCV7240R1Z3",
+      "raw": "24AAFCV7240R1Z3",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.12,
+          "x1": 0.55,
+          "y1": 0.146
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_phone": {
+      "value": "+91 79 4000 9911",
+      "raw": "+91 79 4000 9911",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.15,
+          "x1": 0.55,
+          "y1": 0.176
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_name": {
+      "value": "Kaveri Foods Pvt. Ltd.",
+      "raw": "Kaveri Foods Pvt. Ltd.",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.31,
+          "x1": 0.55,
+          "y1": 0.336
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_gstin": {
+      "value": "29AAECK2214F1Z5",
+      "raw": "29AAECK2214F1Z5",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.34,
+          "x1": 0.55,
+          "y1": 0.36600000000000005
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference": {
+      "value": "KF-PO-0146",
+      "raw": "KF PO 0146",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.27,
+          "x1": 0.55,
+          "y1": 0.29600000000000004
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference_canonical": "KF-PO-0146",
+    "place_of_supply": {
+      "value": "Karnataka",
+      "raw": "Karnataka",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.37,
+          "x1": 0.55,
+          "y1": 0.396
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_name": {
+      "value": "YES Bank",
+      "raw": "YES Bank",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.75,
+          "x1": 0.55,
+          "y1": 0.776
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_account_number": {
+      "value": "012345678901",
+      "raw": "012345678901",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.78,
+          "x1": 0.55,
+          "y1": 0.806
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_ifsc": {
+      "value": "YESB0000123",
+      "raw": "YESB0000123",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.81,
+          "x1": 0.55,
+          "y1": 0.8360000000000001
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "subtotal": {
+      "value": "44500.00",
+      "raw": "44500.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.6,
+          "x1": 0.55,
+          "y1": 0.626
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "total": {
+      "value": "52510.00",
+      "raw": "52510.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.69,
+          "x1": 0.55,
+          "y1": 0.716
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "round_off": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "amount_in_words": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "other_charges_total": "0.00",
+    "tax": {
+      "kind": "inter",
+      "cgst": "0.00",
+      "igst": "8010.00",
+      "sgst": "0.00",
+      "other": "0.00",
+      "rates_pct": [
+        "18"
+      ],
+      "total_tax": "8010.00"
+    },
+    "prices_include_tax": false,
+    "annotations": [
+      "Please note our bank details have changed."
+    ],
+    "line_items": [
+      {
+        "index": 1,
+        "item_code": "LAB-PHM-01",
+        "description": "Benchtop pH meter",
+        "quantity": "2",
+        "uom": "Nos",
+        "unit_price": "18500.00",
+        "amount": "37000.00",
+        "taxable_amount": "37000.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.45,
+            "x1": 0.9,
+            "y1": 0.47600000000000003
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "item_code": "LAB-BUF-SET",
+        "description": "Calibration buffer set",
+        "quantity": "6",
+        "uom": "Set",
+        "unit_price": "1250.00",
+        "amount": "7500.00",
+        "taxable_amount": "7500.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.49,
+            "x1": 0.9,
+            "y1": 0.516
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "cached": false,
+      "cached_at": null,
+      "input_tokens": 1280,
+      "output_tokens": 460,
+      "latency_ms": 4000,
+      "model": "mock-reader",
+      "prompt_id": "invoice_text",
+      "prompt_version": "1",
+      "provider": "fake",
+      "raw": {
+        "amount_in_words": null,
+        "annotations": [
+          "Please note our bank details have changed."
+        ],
+        "bank_account_name": "Vertex Lab Instruments",
+        "bank_account_number": "012345678901",
+        "bank_ifsc": "YESB0000123",
+        "bank_name": "YES Bank",
+        "buyer_gstin": "29AAECK2214F1Z5",
+        "buyer_name": "Kaveri Foods Pvt. Ltd.",
+        "currency": "INR",
+        "document_title": "TAX INVOICE",
+        "document_type": "tax_invoice",
+        "due_date": null,
+        "invoice_date": "16/11/2026",
+        "invoice_number": "VLI/26-27/0311",
+        "legibility": "clear",
+        "line_items": [
+          {
+            "amount": "37000.00",
+            "description": "Benchtop pH meter",
+            "hsn_sac": null,
+            "item_code": "LAB-PHM-01",
+            "quantity": "2",
+            "tax_rate": "18",
+            "unit_price": "18500.00",
+            "uom": "Nos"
+          },
+          {
+            "amount": "7500.00",
+            "description": "Calibration buffer set",
+            "hsn_sac": null,
+            "item_code": "LAB-BUF-SET",
+            "quantity": "6",
+            "tax_rate": "18",
+            "unit_price": "1250.00",
+            "uom": "Set"
+          }
+        ],
+        "other_charges": [],
+        "place_of_supply": "Karnataka",
+        "po_reference": "KF PO 0146",
+        "prices_include_tax": false,
+        "round_off": null,
+        "subtotal": "44500.00",
+        "supplier_address": null,
+        "supplier_email": "accounts@vertexlab-instruments.example",
+        "supplier_gstin": "24AAFCV7240R1Z3",
+        "supplier_name": "Vertex Lab Instruments",
+        "supplier_phone": "+91 79 4000 9911",
+        "tax_lines": [
+          {
+            "tax_type": "IGST",
+            "rate": "18",
+            "amount": "8010.00"
+          }
+        ],
+        "total": "52510.00"
+      }
+    }
+  },
+  "decision": {
+    "version": 1,
+    "outcome": "HOLD",
+    "primary_reason": "BANK_DETAILS_CHANGED",
+    "reasons": [
+      "BANK_DETAILS_CHANGED",
+      "SENDER_DOMAIN_MISMATCH"
+    ],
+    "route": "treasury",
+    "headline": "Hold for review",
+    "final": false,
+    "decided_at": "2026-11-16T10:18:06.130Z",
+    "policy_version": "v1",
+    "checks_summary": {
+      "pass": 6,
+      "warn": 1,
+      "fail": 1,
+      "skip": 0
+    },
+    "notes": [],
+    "handoff": {
+      "owner": "treasury",
+      "question": "Can Treasury verify the new bank account with the vendor?",
+      "suggested_action": "Call the phone on file, +91 79 2658 3300, and confirm the account before payment.",
+      "actions": [
+        "verify_bank",
+        "reject"
+      ],
+      "blocking_codes": [
+        "BANK_DETAILS_CHANGED",
+        "SENDER_DOMAIN_MISMATCH"
+      ],
+      "amount_at_risk": "52510.00"
+    },
+    "explanation": {
+      "summary": "The invoice shows a new bank account and came from a different email domain. Treasury must verify the change before payment.",
+      "bullets": [
+        "The bank account on the invoice differs from the vendor master.",
+        "The sender domain differs from the address on file."
+      ],
+      "generated_by": "template",
+      "model": null,
+      "vendor_message": null,
+      "internal_note": {
+        "channel": "internal",
+        "to": "treasury",
+        "subject": "Can Treasury verify the new bank account with the vendor?",
+        "body": "Call the phone on file, +91 79 2658 3300, and confirm the account before payment."
+      }
+    },
+    "posting": null
+  },
+  "decision_history": [
+    {
+      "version": 1,
+      "outcome": "HOLD",
+      "primary_reason": "BANK_DETAILS_CHANGED",
+      "reasons": [
+        "BANK_DETAILS_CHANGED",
+        "SENDER_DOMAIN_MISMATCH"
+      ],
+      "route": "treasury",
+      "headline": "Hold for review",
+      "final": false,
+      "decided_at": "2026-11-16T10:18:06.130Z",
+      "policy_version": "v1",
+      "checks_summary": {
+        "pass": 6,
+        "warn": 1,
+        "fail": 1,
+        "skip": 0
+      },
+      "notes": [],
+      "handoff": {
+        "owner": "treasury",
+        "question": "Can Treasury verify the new bank account with the vendor?",
+        "suggested_action": "Call the phone on file, +91 79 2658 3300, and confirm the account before payment.",
+        "actions": [
+          "verify_bank",
+          "reject"
+        ],
+        "blocking_codes": [
+          "BANK_DETAILS_CHANGED",
+          "SENDER_DOMAIN_MISMATCH"
+        ],
+        "amount_at_risk": "52510.00"
+      },
+      "explanation": {
+        "summary": "The invoice shows a new bank account and came from a different email domain. Treasury must verify the change before payment.",
+        "bullets": [
+          "The bank account on the invoice differs from the vendor master.",
+          "The sender domain differs from the address on file."
+        ],
+        "generated_by": "template",
+        "model": null,
+        "vendor_message": null,
+        "internal_note": {
+          "channel": "internal",
+          "to": "treasury",
+          "subject": "Can Treasury verify the new bank account with the vendor?",
+          "body": "Call the phone on file, +91 79 2658 3300, and confirm the account before payment."
+        }
+      },
+      "posting": null
+    }
+  ],
+  "review_actions": [],
+  "page_count": 1,
+  "file_sha256": "0606060606060606060606060606060606060606060606060606060606060606",
+  "matching": {
+    "po_number": "KF-PO-0146",
+    "match_type": "three_way",
+    "po_candidates": [],
+    "header_expected": "52510.00",
+    "header_invoiced": "52510.00",
+    "header_variance": "0.00",
+    "rows": [
+      {
+        "kind": "one_to_one",
+        "matched_by": "code",
+        "description_invoice": "Benchtop pH meter",
+        "description_po": "Benchtop pH meter",
+        "invoice_line_indexes": [
+          1
+        ],
+        "po_line_nos": [
+          1
+        ],
+        "similarity": 1,
+        "qty_invoiced": "2",
+        "qty_ordered": "2",
+        "qty_received": "2",
+        "qty_billed_before": "0",
+        "qty_available": "2",
+        "unit_price_invoice": "18500.00",
+        "unit_price_po": "18500.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "37000.00",
+        "amount_invoice": "37000.00",
+        "status": "pass",
+        "codes": []
+      },
+      {
+        "kind": "one_to_one",
+        "matched_by": "code",
+        "description_invoice": "Calibration buffer set",
+        "description_po": "Calibration buffer set",
+        "invoice_line_indexes": [
+          2
+        ],
+        "po_line_nos": [
+          2
+        ],
+        "similarity": 1,
+        "qty_invoiced": "6",
+        "qty_ordered": "6",
+        "qty_received": "6",
+        "qty_billed_before": "0",
+        "qty_available": "6",
+        "unit_price_invoice": "1250.00",
+        "unit_price_po": "1250.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "7500.00",
+        "amount_invoice": "7500.00",
+        "status": "pass",
+        "codes": []
+      }
+    ]
+  },
+  "policy_version": "v1"
+}

@@ -1,0 +1,859 @@
+{
+  "id": 25,
+  "display_id": "R-0025",
+  "created_at": "2026-11-12T16:40:00+05:30",
+  "source": "demo",
+  "filename": "S01-clean-invoice-exact-three-way-match.pdf",
+  "scenario_id": "S01",
+  "sender_name": "Sharma Packaging Industries",
+  "sender_email": "accounts@sharmapackaging.example",
+  "subject": "Invoice SPI/26-27/0214 against KF-PO-0142",
+  "status": "completed",
+  "vendor_id": "V001",
+  "vendor_name": "Sharma Packaging Industries",
+  "invoice_number": "SPI/26-27/0214",
+  "invoice_date": "2026-11-12",
+  "total": "116348.00",
+  "po_number": "KF-PO-0142",
+  "outcome": "APPROVE",
+  "route": "none",
+  "primary_reason": null,
+  "final_outcome": "APPROVE",
+  "duration_ms": 6390,
+  "doc_kind": "digital",
+  "cached_extraction": false,
+  "stages": [
+    {
+      "name": "intake",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:00.060Z",
+      "finished_at": "2026-11-12T11:10:00.140Z",
+      "duration_ms": 80,
+      "summary": "Invoice received and queued.",
+      "check_rule_ids": [],
+      "detail": {
+        "filename": "S01-clean-invoice-exact-three-way-match.pdf",
+        "source": "demo"
+      }
+    },
+    {
+      "name": "read_document",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:00.180Z",
+      "finished_at": "2026-11-12T11:10:00.530Z",
+      "duration_ms": 350,
+      "summary": "Read one page of the invoice.",
+      "check_rule_ids": [],
+      "detail": {
+        "page_count": 1,
+        "doc_kind": "digital",
+        "ocr_used": false
+      }
+    },
+    {
+      "name": "extract_fields",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:00.570Z",
+      "finished_at": "2026-11-12T11:10:04.570Z",
+      "duration_ms": 4000,
+      "summary": "Read invoice header and line items.",
+      "check_rule_ids": [],
+      "detail": {
+        "provider": "fake",
+        "model": "mock-reader",
+        "prompt_id": "invoice_text",
+        "prompt_version": "1",
+        "latency_ms": 4000,
+        "input_tokens": 1280,
+        "output_tokens": 460,
+        "cached": false
+      }
+    },
+    {
+      "name": "validate_document",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:04.610Z",
+      "finished_at": "2026-11-12T11:10:04.790Z",
+      "duration_ms": 180,
+      "summary": "Invoice totals and required fields checked.",
+      "check_rule_ids": [
+        "document.total"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "identify_vendor",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:04.830Z",
+      "finished_at": "2026-11-12T11:10:05.000Z",
+      "duration_ms": 170,
+      "summary": "Vendor matched to the vendor master.",
+      "check_rule_ids": [
+        "vendor.identity"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_tax",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:05.040Z",
+      "finished_at": "2026-11-12T11:10:05.230Z",
+      "duration_ms": 190,
+      "summary": "GST type, rates and amounts checked.",
+      "check_rule_ids": [
+        "tax.rate"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "resolve_po",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:05.270Z",
+      "finished_at": "2026-11-12T11:10:05.460Z",
+      "duration_ms": 190,
+      "summary": "Purchase order identified.",
+      "check_rule_ids": [
+        "po.reference"
+      ],
+      "detail": {
+        "po_number": "KF-PO-0142",
+        "candidates": []
+      }
+    },
+    {
+      "name": "match_lines",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:05.500Z",
+      "finished_at": "2026-11-12T11:10:05.700Z",
+      "duration_ms": 200,
+      "summary": "Invoice lines checked against the order and receipts.",
+      "check_rule_ids": [
+        "match.quantities"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_duplicates",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:05.740Z",
+      "finished_at": "2026-11-12T11:10:05.920Z",
+      "duration_ms": 180,
+      "summary": "No earlier copy found.",
+      "check_rule_ids": [
+        "duplicate.invoice"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "decide",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:05.960Z",
+      "finished_at": "2026-11-12T11:10:06.130Z",
+      "duration_ms": 170,
+      "summary": "Decision recorded.",
+      "check_rule_ids": [],
+      "detail": {}
+    },
+    {
+      "name": "explain_route",
+      "status": "passed",
+      "started_at": "2026-11-12T11:10:06.170Z",
+      "finished_at": "2026-11-12T11:10:06.350Z",
+      "duration_ms": 180,
+      "summary": "Decision explanation prepared.",
+      "check_rule_ids": [],
+      "detail": {}
+    }
+  ],
+  "checks": [
+    {
+      "stage": "validate_document",
+      "rule_id": "document.total",
+      "title": "Invoice arithmetic",
+      "message": "Invoice lines, tax and total reconcile.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.identity",
+      "title": "Vendor record",
+      "message": "Supplier details match the vendor master.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_tax",
+      "rule_id": "tax.rate",
+      "title": "GST rate",
+      "message": "IGST of 18% reconciles with the taxable amount.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "resolve_po",
+      "rule_id": "po.reference",
+      "title": "Purchase order reference",
+      "message": "The invoice refers to KF-PO-0142.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "match_lines",
+      "rule_id": "match.quantities",
+      "title": "Invoice quantities",
+      "message": "Billed quantities match the order and available receipts.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_duplicates",
+      "rule_id": "duplicate.invoice",
+      "title": "Duplicate invoice",
+      "message": "No previous invoice with the same number was found.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    }
+  ],
+  "extraction": {
+    "doc_type": "tax_invoice",
+    "doc_kind": "digital",
+    "legibility": "clear",
+    "currency": "INR",
+    "invoice_number": {
+      "value": "SPI/26-27/0214",
+      "raw": "SPI/26-27/0214",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.2,
+          "x1": 0.55,
+          "y1": 0.226
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "invoice_number_canonical": "26270214",
+    "invoice_date": {
+      "value": "2026-11-12",
+      "raw": "12/11/2026",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.23,
+          "x1": 0.55,
+          "y1": 0.256
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "due_date": {
+      "value": "2026-12-12",
+      "raw": "12/12/2026",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.26,
+          "x1": 0.55,
+          "y1": 0.28600000000000003
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_name": {
+      "value": "Sharma Packaging Industries",
+      "raw": "Sharma Packaging Industries",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.09,
+          "x1": 0.55,
+          "y1": 0.11599999999999999
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_gstin": {
+      "value": "24AAKFS4521L1Z4",
+      "raw": "24AAKFS4521L1Z4",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.12,
+          "x1": 0.55,
+          "y1": 0.146
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_phone": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_name": {
+      "value": "Kaveri Foods Pvt. Ltd.",
+      "raw": "Kaveri Foods Pvt. Ltd.",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.31,
+          "x1": 0.55,
+          "y1": 0.336
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_gstin": {
+      "value": "29AAECK2214F1Z5",
+      "raw": "29AAECK2214F1Z5",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.34,
+          "x1": 0.55,
+          "y1": 0.36600000000000005
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference": {
+      "value": "KF-PO-0142",
+      "raw": "KF-PO-0142",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.27,
+          "x1": 0.55,
+          "y1": 0.29600000000000004
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference_canonical": "KF-PO-0142",
+    "place_of_supply": {
+      "value": "Karnataka",
+      "raw": "Karnataka",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.37,
+          "x1": 0.55,
+          "y1": 0.396
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_name": {
+      "value": "HDFC Bank",
+      "raw": "HDFC Bank",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.75,
+          "x1": 0.55,
+          "y1": 0.776
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_account_number": {
+      "value": "50200087654321",
+      "raw": "50200087654321",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.78,
+          "x1": 0.55,
+          "y1": 0.806
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_ifsc": {
+      "value": "HDFC0001234",
+      "raw": "HDFC0001234",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.81,
+          "x1": 0.55,
+          "y1": 0.8360000000000001
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "subtotal": {
+      "value": "98600.00",
+      "raw": "98600.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.6,
+          "x1": 0.55,
+          "y1": 0.626
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "total": {
+      "value": "116348.00",
+      "raw": "116348.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.69,
+          "x1": 0.55,
+          "y1": 0.716
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "round_off": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "amount_in_words": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "other_charges_total": "0.00",
+    "tax": {
+      "kind": "inter",
+      "cgst": "0.00",
+      "igst": "17748.00",
+      "sgst": "0.00",
+      "other": "0.00",
+      "rates_pct": [
+        "18"
+      ],
+      "total_tax": "17748.00"
+    },
+    "prices_include_tax": false,
+    "annotations": [],
+    "line_items": [
+      {
+        "index": 1,
+        "item_code": "PKG-CB-0450",
+        "description": "Corrugated cartons",
+        "quantity": "2000",
+        "uom": "Nos",
+        "unit_price": "38.50",
+        "amount": "77000.00",
+        "taxable_amount": "77000.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.45,
+            "x1": 0.9,
+            "y1": 0.47600000000000003
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "item_code": "PKG-TP-0048",
+        "description": "Packaging tape",
+        "quantity": "300",
+        "uom": "Roll",
+        "unit_price": "72.00",
+        "amount": "21600.00",
+        "taxable_amount": "21600.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.49,
+            "x1": 0.9,
+            "y1": 0.516
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "cached": false,
+      "cached_at": null,
+      "input_tokens": 1280,
+      "output_tokens": 460,
+      "latency_ms": 4000,
+      "model": "mock-reader",
+      "prompt_id": "invoice_text",
+      "prompt_version": "1",
+      "provider": "fake",
+      "raw": {
+        "amount_in_words": null,
+        "annotations": [],
+        "bank_account_name": "Sharma Packaging Industries",
+        "bank_account_number": "50200087654321",
+        "bank_ifsc": "HDFC0001234",
+        "bank_name": "HDFC Bank",
+        "buyer_gstin": "29AAECK2214F1Z5",
+        "buyer_name": "Kaveri Foods Pvt. Ltd.",
+        "currency": "INR",
+        "document_title": "TAX INVOICE",
+        "document_type": "tax_invoice",
+        "due_date": "12/12/2026",
+        "invoice_date": "12/11/2026",
+        "invoice_number": "SPI/26-27/0214",
+        "legibility": "clear",
+        "line_items": [
+          {
+            "amount": "77000.00",
+            "description": "Corrugated cartons",
+            "hsn_sac": null,
+            "item_code": "PKG-CB-0450",
+            "quantity": "2000",
+            "tax_rate": "18",
+            "unit_price": "38.50",
+            "uom": "Nos"
+          },
+          {
+            "amount": "21600.00",
+            "description": "Packaging tape",
+            "hsn_sac": null,
+            "item_code": "PKG-TP-0048",
+            "quantity": "300",
+            "tax_rate": "18",
+            "unit_price": "72.00",
+            "uom": "Roll"
+          }
+        ],
+        "other_charges": [],
+        "place_of_supply": "Karnataka",
+        "po_reference": "KF-PO-0142",
+        "prices_include_tax": false,
+        "round_off": null,
+        "subtotal": "98600.00",
+        "supplier_address": null,
+        "supplier_email": "accounts@sharmapackaging.example",
+        "supplier_gstin": "24AAKFS4521L1Z4",
+        "supplier_name": "Sharma Packaging Industries",
+        "supplier_phone": null,
+        "tax_lines": [
+          {
+            "tax_type": "IGST",
+            "rate": "18",
+            "amount": "17748.00"
+          }
+        ],
+        "total": "116348.00"
+      }
+    }
+  },
+  "decision": {
+    "version": 1,
+    "outcome": "APPROVE",
+    "primary_reason": null,
+    "reasons": [],
+    "route": "none",
+    "headline": "Approve for payment",
+    "final": true,
+    "decided_at": "2026-11-12T11:10:06.130Z",
+    "policy_version": "v1",
+    "checks_summary": {
+      "pass": 6,
+      "warn": 0,
+      "fail": 0,
+      "skip": 0
+    },
+    "notes": [],
+    "handoff": null,
+    "explanation": {
+      "summary": "The invoice matches the purchase order and received quantities. The vendor, GST and duplicate checks passed.",
+      "bullets": [],
+      "generated_by": "template",
+      "model": null,
+      "vendor_message": null,
+      "internal_note": null
+    },
+    "posting": {
+      "vendor_id": "V001",
+      "invoice_number": "SPI/26-27/0214",
+      "invoice_date": "2026-11-12",
+      "due_date": "2026-12-12",
+      "payment_terms_days": 30,
+      "currency": "INR",
+      "total": "116348.00",
+      "remit_to": {
+        "bank_name": "HDFC Bank",
+        "account_number": "****4321",
+        "ifsc": "HDFC0001234"
+      },
+      "lines": [
+        {
+          "description": "Corrugated cartons",
+          "po_number": "KF-PO-0142",
+          "po_line_no": 1,
+          "cost_center": "BLR-PLANT-01",
+          "gl_account": "510200",
+          "taxable_amount": "77000.00",
+          "tax_amount": "13860.00"
+        },
+        {
+          "description": "Packaging tape",
+          "po_number": "KF-PO-0142",
+          "po_line_no": 2,
+          "cost_center": "BLR-PLANT-01",
+          "gl_account": "510200",
+          "taxable_amount": "21600.00",
+          "tax_amount": "3888.00"
+        }
+      ]
+    }
+  },
+  "decision_history": [
+    {
+      "version": 1,
+      "outcome": "APPROVE",
+      "primary_reason": null,
+      "reasons": [],
+      "route": "none",
+      "headline": "Approve for payment",
+      "final": true,
+      "decided_at": "2026-11-12T11:10:06.130Z",
+      "policy_version": "v1",
+      "checks_summary": {
+        "pass": 6,
+        "warn": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "notes": [],
+      "handoff": null,
+      "explanation": {
+        "summary": "The invoice matches the purchase order and received quantities. The vendor, GST and duplicate checks passed.",
+        "bullets": [],
+        "generated_by": "template",
+        "model": null,
+        "vendor_message": null,
+        "internal_note": null
+      },
+      "posting": {
+        "vendor_id": "V001",
+        "invoice_number": "SPI/26-27/0214",
+        "invoice_date": "2026-11-12",
+        "due_date": "2026-12-12",
+        "payment_terms_days": 30,
+        "currency": "INR",
+        "total": "116348.00",
+        "remit_to": {
+          "bank_name": "HDFC Bank",
+          "account_number": "****4321",
+          "ifsc": "HDFC0001234"
+        },
+        "lines": [
+          {
+            "description": "Corrugated cartons",
+            "po_number": "KF-PO-0142",
+            "po_line_no": 1,
+            "cost_center": "BLR-PLANT-01",
+            "gl_account": "510200",
+            "taxable_amount": "77000.00",
+            "tax_amount": "13860.00"
+          },
+          {
+            "description": "Packaging tape",
+            "po_number": "KF-PO-0142",
+            "po_line_no": 2,
+            "cost_center": "BLR-PLANT-01",
+            "gl_account": "510200",
+            "taxable_amount": "21600.00",
+            "tax_amount": "3888.00"
+          }
+        ]
+      }
+    }
+  ],
+  "review_actions": [],
+  "page_count": 1,
+  "file_sha256": "0101010101010101010101010101010101010101010101010101010101010101",
+  "matching": {
+    "po_number": "KF-PO-0142",
+    "match_type": "three_way",
+    "po_candidates": [],
+    "header_expected": "116348.00",
+    "header_invoiced": "116348.00",
+    "header_variance": "0.00",
+    "rows": [
+      {
+        "kind": "one_to_one",
+        "matched_by": "code",
+        "description_invoice": "Corrugated cartons",
+        "description_po": "Corrugated cartons",
+        "invoice_line_indexes": [
+          1
+        ],
+        "po_line_nos": [
+          1
+        ],
+        "similarity": 1,
+        "qty_invoiced": "2000",
+        "qty_ordered": "2000",
+        "qty_received": "2000",
+        "qty_billed_before": "0",
+        "qty_available": "2000",
+        "unit_price_invoice": "38.50",
+        "unit_price_po": "38.50",
+        "price_variance_pct": "0.00",
+        "amount_expected": "77000.00",
+        "amount_invoice": "77000.00",
+        "status": "pass",
+        "codes": []
+      },
+      {
+        "kind": "one_to_one",
+        "matched_by": "code",
+        "description_invoice": "Packaging tape",
+        "description_po": "Packaging tape",
+        "invoice_line_indexes": [
+          2
+        ],
+        "po_line_nos": [
+          2
+        ],
+        "similarity": 1,
+        "qty_invoiced": "300",
+        "qty_ordered": "300",
+        "qty_received": "300",
+        "qty_billed_before": "0",
+        "qty_available": "300",
+        "unit_price_invoice": "72.00",
+        "unit_price_po": "72.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "21600.00",
+        "amount_invoice": "21600.00",
+        "status": "pass",
+        "codes": []
+      }
+    ]
+  },
+  "policy_version": "v1"
+}
