@@ -7,6 +7,8 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
+# Two web tests import the API schema at ../../../../backend/openapi.json (resolves to /backend).
+COPY backend/openapi.json /backend/openapi.json
 RUN npm run build
 
 # --- 2. API + seeded demo world ---------------------------------------------------------------------
