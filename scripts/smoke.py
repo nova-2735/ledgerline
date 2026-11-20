@@ -75,8 +75,18 @@ class Smoke:
         deadline = time.monotonic() + wait_s
         while True:
             try:
+                start = time.perf_counter()
                 body = self.request("POST", "/demo/reset", timeout=wait_s)
-                return f"{body['runs']} seeded runs"
+                took = time.perf_counter() - start
+                how = {"snapshot": "restored the seeded snapshot", "reseed": "reseeded"}.get(
+                    body.get("mode", ""), "reset"
+                )
+                server = (
+                    f", {body['duration_ms'] / 1000:.1f} s on the server"
+                    if "duration_ms" in body
+                    else ""
+                )
+                return f"{body['runs']} seeded runs; {how} in {took:.1f} s{server}"
             except SmokeError as exc:
                 busy = "reset_timeout" in str(exc) or "reset_in_progress" in str(exc)
                 if not busy or time.monotonic() > deadline:

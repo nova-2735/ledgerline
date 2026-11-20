@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.api.deps import DB, ERROR_RESPONSES, APIError, not_found
 from app.api.routes_runs import intake_error
-from app.demo.seed import load_manifest, seed, world_dir
+from app.demo.seed import load_manifest, reset, world_dir
 from app.enums import RunSource
 from app.ingest.reader import IntakeError
 from app.models.api import DemoInboxItem, DemoRunRequest, ResetResponse, RunCreated
@@ -93,4 +93,5 @@ def get_demo_inbox(db: DB) -> list[DemoInboxItem]:
 
 @router.post("/demo/reset", response_model=ResetResponse)
 def reset_demo() -> ResetResponse:
-    return ResetResponse(status="ok", runs=seed())
+    done = reset()
+    return ResetResponse(status="ok", runs=done.runs, mode=done.mode, duration_ms=done.duration_ms)

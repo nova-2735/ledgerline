@@ -112,3 +112,15 @@ used a cached reading is labelled "cached" in the UI and in its events, and "Pro
 read" bypasses the cache. An hourly budget caps live calls.
 **Trade-off.** A cached run doesn't show live model latency, so the label must be visible to be
 honest.
+
+## 13. Reset restores a seeded snapshot
+
+**Context.** A demo reset re-ran the whole seed through the pipeline: about 5 s on a laptop but
+about 87 s on the free Render instance, long enough to break the flow of a live demo.
+**Decision.** The freshly seeded database is kept as a snapshot (the image's `/app/seed-data`,
+or `DATA_DIR/seed-snapshot/` locally) and a reset copies it into the live database with SQLite's
+online backup API, under the same reset lock as before. Saved model readings are carried over. A
+local snapshot records a fingerprint of the code, prompts, policy, specs and world and is ignored
+once any of them changes; with no current snapshot, or if the restore fails, the reset reseeds.
+**Trade-off.** One extra copy of a few-MB database on disk, and the fingerprint is coarse: any
+code edit means the next local reset is a slow reseed.

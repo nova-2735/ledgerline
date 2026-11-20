@@ -86,7 +86,8 @@ def test_demo_reset_reseeds(api: TestClient) -> None:
     run_id = api.post("/api/demo/runs/S01").json()["run_id"]
     wait_run(api, run_id)
     assert api.get("/api/runs").json()["total"] == 25
-    assert api.post("/api/demo/reset").json() == {"status": "ok", "runs": 24}
+    body = api.post("/api/demo/reset").json()
+    assert (body["status"], body["runs"], body["mode"]) == ("ok", 24, "snapshot")
     assert api.get("/api/runs").json()["total"] == 24
 
 

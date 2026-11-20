@@ -54,6 +54,10 @@ class DemoInboxItem(Model):
 class ResetResponse(Model):
     status: Literal["ok"]
     runs: int
+    mode: Literal["snapshot", "reseed"] = Field(
+        description="snapshot: the seeded database was restored; reseed: rebuilt via the pipeline"
+    )
+    duration_ms: int
 
 
 class RunList(Model):

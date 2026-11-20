@@ -2940,6 +2940,19 @@
       },
       "ResetResponse": {
         "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "mode": {
+            "description": "snapshot: the seeded database was restored; reseed: rebuilt via the pipeline",
+            "enum": [
+              "snapshot",
+              "reseed"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "runs": {
             "title": "Runs",
             "type": "integer"
@@ -2952,7 +2965,9 @@
         },
         "required": [
           "status",
-          "runs"
+          "runs",
+          "mode",
+          "duration_ms"
         ],
         "title": "ResetResponse",
         "type": "object"

@@ -82,3 +82,5 @@
 - VENDOR_NOT_FOUND keeps `approve` in its handoff actions (RULES template), but the API refuses it while no vendor record exists; `RunDetail.approval_block` carries the refusal so the UI shows Approve disabled with that reason.
 - Dashboard KPIs show "No prior data" instead of a change when the previous period has no runs or the previous value is 0; the "All" period has no previous period and shows a dash.
 - README uses the dashboard and inbox screenshots; no live run view screenshot was captured, so the live run view is described in text.
+- Reset: `POST /demo/reset` restores the seeded snapshot when one is current and reseeds otherwise; the response says which (`mode`) and how long it took (`duration_ms`). The image's build-time snapshot is always trusted (it was seeded by the same code); a local snapshot is used only while its fingerprint (app code, prompts, YAML specs, policy file, world manifest) matches.
+- Reset: the backup API replaces the live database in place rather than swapping the file, so connections held by in-flight requests (e.g. an open event stream) stay valid; uploaded and rendered files on disk are content-addressed and left alone.
