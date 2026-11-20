@@ -1,0 +1,250 @@
+{
+  "kpis": {
+    "processed": 11,
+    "value_processed": "861990.00",
+    "touchless_rate": 0.6363636363636364,
+    "awaiting_review": 1,
+    "median_decision_ms": null,
+    "exposure_stopped": "36344.00"
+  },
+  "by_day": [
+    {
+      "date": "2026-10-21",
+      "APPROVE": 2,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-22",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-23",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 1,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-24",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-25",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-26",
+      "APPROVE": 1,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-27",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-28",
+      "APPROVE": 1,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-29",
+      "APPROVE": 2,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-10-30",
+      "APPROVE": 1,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 1
+    },
+    {
+      "date": "2026-10-31",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-01",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-02",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-03",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-04",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-05",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-06",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-07",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-08",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-09",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-10",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-11",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-12",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-13",
+      "APPROVE": 1,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-14",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-15",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-16",
+      "APPROVE": 0,
+      "HOLD": 1,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-17",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-18",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    },
+    {
+      "date": "2026-11-19",
+      "APPROVE": 0,
+      "HOLD": 0,
+      "RETURN": 0,
+      "REJECT": 0
+    }
+  ],
+  "by_reason": [
+    {
+      "code": "GOODS_NOT_RECEIVED",
+      "count": 1,
+      "amount": "15576.00"
+    },
+    {
+      "code": "DUPLICATE_SAME_FILE",
+      "count": 1,
+      "amount": "36344.00"
+    },
+    {
+      "code": "FIELD_MISSING_INVOICE_NUMBER",
+      "count": 1,
+      "amount": "60180.00"
+    },
+    {
+      "code": "APPROVAL_LIMIT_EXCEEDED",
+      "count": 1,
+      "amount": "531000.00"
+    }
+  ],
+  "by_route": [
+    {
+      "route": "receiving",
+      "count": 1
+    }
+  ]
+}

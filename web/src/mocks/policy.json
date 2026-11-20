@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "path": "default_policy.yaml",
+  "policy": {
+    "tolerances": {
+      "unit_price_pct": "2",
+      "header_pct": "2",
+      "header_abs": "2500.00"
+    },
+    "approval": {
+      "auto_approve_limit": "500000.00"
+    }
+  }
+}

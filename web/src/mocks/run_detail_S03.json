@@ -1,0 +1,783 @@
+{
+  "id": 27,
+  "display_id": "R-0027",
+  "created_at": "2026-11-15T09:20:00+05:30",
+  "source": "demo",
+  "filename": "S03-split-billing-exceeds-the-order.pdf",
+  "scenario_id": "S03",
+  "sender_name": "Apex Industrial Supplies",
+  "sender_email": "ar@apexindustrial.example",
+  "subject": "Invoice AIS/26-27/1188 — gloves (blanket PO KF-PO-0119)",
+  "status": "awaiting_review",
+  "vendor_id": "V003",
+  "vendor_name": "Apex Industrial Supplies",
+  "invoice_number": "AIS/26-27/1188",
+  "invoice_date": "2026-11-15",
+  "total": "85550.00",
+  "po_number": "KF-PO-0119",
+  "outcome": "HOLD",
+  "route": "buyer",
+  "primary_reason": "QTY_EXCEEDS_PO_REMAINING",
+  "final_outcome": null,
+  "duration_ms": 6390,
+  "doc_kind": "digital",
+  "cached_extraction": false,
+  "stages": [
+    {
+      "name": "intake",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:00.060Z",
+      "finished_at": "2026-11-15T03:50:00.140Z",
+      "duration_ms": 80,
+      "summary": "Invoice received and queued.",
+      "check_rule_ids": [],
+      "detail": {
+        "filename": "S03-split-billing-exceeds-the-order.pdf",
+        "source": "demo"
+      }
+    },
+    {
+      "name": "read_document",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:00.180Z",
+      "finished_at": "2026-11-15T03:50:00.530Z",
+      "duration_ms": 350,
+      "summary": "Read one page of the invoice.",
+      "check_rule_ids": [],
+      "detail": {
+        "page_count": 1,
+        "doc_kind": "digital",
+        "ocr_used": false
+      }
+    },
+    {
+      "name": "extract_fields",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:00.570Z",
+      "finished_at": "2026-11-15T03:50:04.570Z",
+      "duration_ms": 4000,
+      "summary": "Read invoice header and line items.",
+      "check_rule_ids": [],
+      "detail": {
+        "provider": "fake",
+        "model": "mock-reader",
+        "prompt_id": "invoice_text",
+        "prompt_version": "1",
+        "latency_ms": 4000,
+        "input_tokens": 1280,
+        "output_tokens": 460,
+        "cached": false
+      }
+    },
+    {
+      "name": "validate_document",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:04.610Z",
+      "finished_at": "2026-11-15T03:50:04.790Z",
+      "duration_ms": 180,
+      "summary": "Invoice totals and required fields checked.",
+      "check_rule_ids": [
+        "document.total"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "identify_vendor",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:04.830Z",
+      "finished_at": "2026-11-15T03:50:05.000Z",
+      "duration_ms": 170,
+      "summary": "Vendor matched to the vendor master.",
+      "check_rule_ids": [
+        "vendor.identity"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_tax",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:05.040Z",
+      "finished_at": "2026-11-15T03:50:05.230Z",
+      "duration_ms": 190,
+      "summary": "GST type, rates and amounts checked.",
+      "check_rule_ids": [
+        "tax.rate"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "resolve_po",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:05.270Z",
+      "finished_at": "2026-11-15T03:50:05.460Z",
+      "duration_ms": 190,
+      "summary": "Purchase order identified.",
+      "check_rule_ids": [
+        "po.reference"
+      ],
+      "detail": {
+        "po_number": "KF-PO-0119",
+        "candidates": []
+      }
+    },
+    {
+      "name": "match_lines",
+      "status": "failed",
+      "started_at": "2026-11-15T03:50:05.500Z",
+      "finished_at": "2026-11-15T03:50:05.700Z",
+      "duration_ms": 200,
+      "summary": "50 boxes invoiced with 40 left on the order. 50 boxes invoiced with 30 received and unbilled.",
+      "check_rule_ids": [
+        "match.po_balance",
+        "match.receipts"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "check_duplicates",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:05.740Z",
+      "finished_at": "2026-11-15T03:50:05.920Z",
+      "duration_ms": 180,
+      "summary": "No earlier copy found.",
+      "check_rule_ids": [
+        "duplicate.invoice"
+      ],
+      "detail": {}
+    },
+    {
+      "name": "decide",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:05.960Z",
+      "finished_at": "2026-11-15T03:50:06.130Z",
+      "duration_ms": 170,
+      "summary": "Decision recorded.",
+      "check_rule_ids": [],
+      "detail": {}
+    },
+    {
+      "name": "explain_route",
+      "status": "passed",
+      "started_at": "2026-11-15T03:50:06.170Z",
+      "finished_at": "2026-11-15T03:50:06.350Z",
+      "duration_ms": 180,
+      "summary": "Decision explanation prepared.",
+      "check_rule_ids": [],
+      "detail": {}
+    }
+  ],
+  "checks": [
+    {
+      "stage": "validate_document",
+      "rule_id": "document.total",
+      "title": "Invoice arithmetic",
+      "message": "Invoice lines, tax and total reconcile.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "identify_vendor",
+      "rule_id": "vendor.identity",
+      "title": "Vendor record",
+      "message": "Supplier details match the vendor master.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_tax",
+      "rule_id": "tax.rate",
+      "title": "GST rate",
+      "message": "IGST of 18% reconciles with the taxable amount.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "resolve_po",
+      "rule_id": "po.reference",
+      "title": "Purchase order reference",
+      "message": "The invoice refers to KF-PO-0119.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    },
+    {
+      "stage": "match_lines",
+      "rule_id": "match.po_balance",
+      "title": "Remaining to bill",
+      "message": "50 boxes invoiced with 40 left on the order.",
+      "status": "fail",
+      "code": "QTY_EXCEEDS_PO_REMAINING",
+      "severity": "medium",
+      "evidence": {
+        "ordered": "100",
+        "billed_before": "60",
+        "invoiced": "50",
+        "remaining": "40"
+      },
+      "amount_at_risk": "17110.00",
+      "route": "buyer",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "match_lines",
+      "rule_id": "match.receipts",
+      "title": "Goods received",
+      "message": "50 boxes invoiced with 30 received and unbilled.",
+      "status": "fail",
+      "code": "QTY_EXCEEDS_RECEIVED",
+      "severity": "medium",
+      "evidence": {
+        "received": "90",
+        "billed_before": "60",
+        "invoiced": "50",
+        "available": "30"
+      },
+      "amount_at_risk": "34220.00",
+      "route": "buyer",
+      "outcome_hint": "HOLD",
+      "resolved_by_review": false
+    },
+    {
+      "stage": "check_duplicates",
+      "rule_id": "duplicate.invoice",
+      "title": "Duplicate invoice",
+      "message": "No previous invoice with the same number was found.",
+      "status": "pass",
+      "code": null,
+      "severity": "info",
+      "evidence": {},
+      "amount_at_risk": null,
+      "route": "none",
+      "outcome_hint": null,
+      "resolved_by_review": false
+    }
+  ],
+  "extraction": {
+    "doc_type": "tax_invoice",
+    "doc_kind": "digital",
+    "legibility": "clear",
+    "currency": "INR",
+    "invoice_number": {
+      "value": "AIS/26-27/1188",
+      "raw": "AIS/26-27/1188",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.2,
+          "x1": 0.55,
+          "y1": 0.226
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "invoice_number_canonical": "26271188",
+    "invoice_date": {
+      "value": "2026-11-15",
+      "raw": "15/11/2026",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.23,
+          "x1": 0.55,
+          "y1": 0.256
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "due_date": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_name": {
+      "value": "Apex Industrial Supplies",
+      "raw": "Apex Industrial Supplies",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.09,
+          "x1": 0.55,
+          "y1": 0.11599999999999999
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_gstin": {
+      "value": "33AACCA5302A1Z1",
+      "raw": "33AACCA5302A1Z1",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.12,
+          "x1": 0.55,
+          "y1": 0.146
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "supplier_phone": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_name": {
+      "value": "Kaveri Foods Pvt. Ltd.",
+      "raw": "Kaveri Foods Pvt. Ltd.",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.31,
+          "x1": 0.55,
+          "y1": 0.336
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "buyer_gstin": {
+      "value": "29AAECK2214F1Z5",
+      "raw": "29AAECK2214F1Z5",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.34,
+          "x1": 0.55,
+          "y1": 0.36600000000000005
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference": {
+      "value": "KF-PO-0119",
+      "raw": "KF-PO-0119 (Blanket)",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.27,
+          "x1": 0.55,
+          "y1": 0.29600000000000004
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "po_reference_canonical": "KF-PO-0119",
+    "place_of_supply": {
+      "value": "Karnataka",
+      "raw": "Karnataka",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.37,
+          "x1": 0.55,
+          "y1": 0.396
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "bank_name": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "bank_account_number": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "bank_ifsc": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "subtotal": {
+      "value": "72500.00",
+      "raw": "72500.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.6,
+          "x1": 0.55,
+          "y1": 0.626
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "total": {
+      "value": "85550.00",
+      "raw": "85550.00",
+      "bbox": [
+        {
+          "page": 1,
+          "x0": 0.1,
+          "y0": 0.69,
+          "x1": 0.55,
+          "y1": 0.716
+        }
+      ],
+      "confidence": 0.99,
+      "level": "high",
+      "grounded": "exact",
+      "notes": [],
+      "validators": []
+    },
+    "round_off": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "amount_in_words": {
+      "value": null,
+      "raw": null,
+      "bbox": [],
+      "confidence": 0,
+      "level": "low",
+      "grounded": "unavailable",
+      "notes": [],
+      "validators": []
+    },
+    "other_charges_total": "0.00",
+    "tax": {
+      "kind": "inter",
+      "cgst": "0.00",
+      "igst": "13050.00",
+      "sgst": "0.00",
+      "other": "0.00",
+      "rates_pct": [
+        "18"
+      ],
+      "total_tax": "13050.00"
+    },
+    "prices_include_tax": false,
+    "annotations": [],
+    "line_items": [
+      {
+        "index": 1,
+        "item_code": "MRO-GLV-NIT",
+        "description": "Nitrile gloves",
+        "quantity": "50",
+        "uom": "Box",
+        "unit_price": "1450.00",
+        "amount": "72500.00",
+        "taxable_amount": "72500.00",
+        "tax_rate_pct": "18",
+        "hsn_sac": null,
+        "bbox": [
+          {
+            "page": 1,
+            "x0": 0.1,
+            "y0": 0.45,
+            "x1": 0.9,
+            "y1": 0.47600000000000003
+          }
+        ]
+      }
+    ],
+    "meta": {
+      "cached": false,
+      "cached_at": null,
+      "input_tokens": 1280,
+      "output_tokens": 460,
+      "latency_ms": 4000,
+      "model": "mock-reader",
+      "prompt_id": "invoice_text",
+      "prompt_version": "1",
+      "provider": "fake",
+      "raw": {
+        "amount_in_words": null,
+        "annotations": [],
+        "bank_account_name": null,
+        "bank_account_number": null,
+        "bank_ifsc": null,
+        "bank_name": null,
+        "buyer_gstin": "29AAECK2214F1Z5",
+        "buyer_name": "Kaveri Foods Pvt. Ltd.",
+        "currency": "INR",
+        "document_title": "TAX INVOICE",
+        "document_type": "tax_invoice",
+        "due_date": null,
+        "invoice_date": "15/11/2026",
+        "invoice_number": "AIS/26-27/1188",
+        "legibility": "clear",
+        "line_items": [
+          {
+            "amount": "72500.00",
+            "description": "Nitrile gloves",
+            "hsn_sac": null,
+            "item_code": "MRO-GLV-NIT",
+            "quantity": "50",
+            "tax_rate": "18",
+            "unit_price": "1450.00",
+            "uom": "Box"
+          }
+        ],
+        "other_charges": [],
+        "place_of_supply": "Karnataka",
+        "po_reference": "KF-PO-0119 (Blanket)",
+        "prices_include_tax": false,
+        "round_off": null,
+        "subtotal": "72500.00",
+        "supplier_address": null,
+        "supplier_email": "ar@apexindustrial.example",
+        "supplier_gstin": "33AACCA5302A1Z1",
+        "supplier_name": "Apex Industrial Supplies",
+        "supplier_phone": null,
+        "tax_lines": [
+          {
+            "tax_type": "IGST",
+            "rate": "18",
+            "amount": "13050.00"
+          }
+        ],
+        "total": "85550.00"
+      }
+    }
+  },
+  "decision": {
+    "version": 1,
+    "outcome": "HOLD",
+    "primary_reason": "QTY_EXCEEDS_PO_REMAINING",
+    "reasons": [
+      "QTY_EXCEEDS_PO_REMAINING",
+      "QTY_EXCEEDS_RECEIVED"
+    ],
+    "route": "buyer",
+    "headline": "Hold for review",
+    "final": false,
+    "decided_at": "2026-11-15T03:50:06.130Z",
+    "policy_version": "v1",
+    "checks_summary": {
+      "pass": 5,
+      "warn": 0,
+      "fail": 2,
+      "skip": 0
+    },
+    "notes": [],
+    "handoff": {
+      "owner": "buyer",
+      "question": "Can the buyer clear the 20 boxes billed above receipts?",
+      "suggested_action": "Approve 30 boxes for ₹51,330.00 and request a credit note for 20 boxes.",
+      "actions": [
+        "approve",
+        "reject",
+        "send_to_vendor"
+      ],
+      "blocking_codes": [
+        "QTY_EXCEEDS_PO_REMAINING",
+        "QTY_EXCEEDS_RECEIVED"
+      ],
+      "amount_at_risk": "34220.00"
+    },
+    "explanation": {
+      "summary": "The invoice exceeds both the remaining order quantity and the quantity received and unbilled.",
+      "bullets": [
+        "50 boxes invoiced with 40 left on the order.",
+        "50 boxes invoiced with 30 received and unbilled."
+      ],
+      "generated_by": "template",
+      "model": null,
+      "vendor_message": null,
+      "internal_note": {
+        "channel": "internal",
+        "to": "buyer",
+        "subject": "Can the buyer clear the 20 boxes billed above receipts?",
+        "body": "Approve 30 boxes for ₹51,330.00 and request a credit note for 20 boxes."
+      }
+    },
+    "posting": null
+  },
+  "decision_history": [
+    {
+      "version": 1,
+      "outcome": "HOLD",
+      "primary_reason": "QTY_EXCEEDS_PO_REMAINING",
+      "reasons": [
+        "QTY_EXCEEDS_PO_REMAINING",
+        "QTY_EXCEEDS_RECEIVED"
+      ],
+      "route": "buyer",
+      "headline": "Hold for review",
+      "final": false,
+      "decided_at": "2026-11-15T03:50:06.130Z",
+      "policy_version": "v1",
+      "checks_summary": {
+        "pass": 5,
+        "warn": 0,
+        "fail": 2,
+        "skip": 0
+      },
+      "notes": [],
+      "handoff": {
+        "owner": "buyer",
+        "question": "Can the buyer clear the 20 boxes billed above receipts?",
+        "suggested_action": "Approve 30 boxes for ₹51,330.00 and request a credit note for 20 boxes.",
+        "actions": [
+          "approve",
+          "reject",
+          "send_to_vendor"
+        ],
+        "blocking_codes": [
+          "QTY_EXCEEDS_PO_REMAINING",
+          "QTY_EXCEEDS_RECEIVED"
+        ],
+        "amount_at_risk": "34220.00"
+      },
+      "explanation": {
+        "summary": "The invoice exceeds both the remaining order quantity and the quantity received and unbilled.",
+        "bullets": [
+          "50 boxes invoiced with 40 left on the order.",
+          "50 boxes invoiced with 30 received and unbilled."
+        ],
+        "generated_by": "template",
+        "model": null,
+        "vendor_message": null,
+        "internal_note": {
+          "channel": "internal",
+          "to": "buyer",
+          "subject": "Can the buyer clear the 20 boxes billed above receipts?",
+          "body": "Approve 30 boxes for ₹51,330.00 and request a credit note for 20 boxes."
+        }
+      },
+      "posting": null
+    }
+  ],
+  "review_actions": [],
+  "page_count": 1,
+  "file_sha256": "0303030303030303030303030303030303030303030303030303030303030303",
+  "matching": {
+    "po_number": "KF-PO-0119",
+    "match_type": "three_way",
+    "po_candidates": [],
+    "header_expected": "85550.00",
+    "header_invoiced": "85550.00",
+    "header_variance": "0.00",
+    "rows": [
+      {
+        "kind": "one_to_one",
+        "matched_by": "code",
+        "description_invoice": "Nitrile gloves",
+        "description_po": "Nitrile gloves",
+        "invoice_line_indexes": [
+          1
+        ],
+        "po_line_nos": [
+          1
+        ],
+        "similarity": 1,
+        "qty_invoiced": "50",
+        "qty_ordered": "100",
+        "qty_received": "90",
+        "qty_billed_before": "60",
+        "qty_available": "30",
+        "unit_price_invoice": "1450.00",
+        "unit_price_po": "1450.00",
+        "price_variance_pct": "0.00",
+        "amount_expected": "72500.00",
+        "amount_invoice": "72500.00",
+        "status": "fail",
+        "codes": [
+          "QTY_EXCEEDS_PO_REMAINING",
+          "QTY_EXCEEDS_RECEIVED"
+        ]
+      }
+    ]
+  },
+  "policy_version": "v1"
+}

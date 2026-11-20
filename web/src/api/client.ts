@@ -7,6 +7,7 @@ type Query<Op extends keyof operations> = operations[Op]['parameters'] extends {
   : never
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
+export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === '1'
 
 export class ApiError extends Error {
   readonly status: number
@@ -44,7 +45,7 @@ function buildUrl(path: string, query?: Record<string, QueryValue>): string {
   return `${API_BASE}${path}${qs ? `?${qs}` : ''}`
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   query?: Record<string, QueryValue>
   json?: unknown
   form?: FormData
@@ -56,6 +57,11 @@ export async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  if (import.meta.env.VITE_USE_MOCKS === '1') {
+    const { mockRequest } = await import('@/mocks/mockServer')
+    options.signal?.throwIfAborted()
+    return mockRequest(method, path, options) as T
+  }
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (accessCode) headers['X-Access-Code'] = accessCode
   let body: BodyInit | undefined
