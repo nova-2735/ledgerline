@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Dashboard } from '@/pages/Dashboard'
 import { Inbox } from '@/pages/Inbox'
+import { RunView } from '@/pages/RunView'
 
 function Placeholder({ title }: { title: string }) {
   return <div className="panel p-6"><h1 className="page-title">{title}</h1><p className="mt-2 text-muted-foreground">Coming in next block</p></div>
@@ -26,7 +27,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<Dashboard />} />
             <Route path="inbox" element={<Inbox />} />
-            <Route path="runs/:id" element={<Placeholder title="Invoice run" />} />
+            <Route path="runs/:id" element={<RunView />} />
             <Route path="queue" element={<Placeholder title="Review queue" />} />
             <Route path="purchase-orders" element={<Placeholder title="Purchase orders" />} />
             <Route path="purchase-orders/:po" element={<Placeholder title="Purchase order" />} />

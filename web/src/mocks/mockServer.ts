@@ -1,6 +1,7 @@
 import { ApiError, type RequestOptions, type Schemas } from '@/api/client'
 import { outcomes, reasons, stages } from '@/lib/labels'
 import { fixtures } from './fixtures'
+import { mockReview } from './mockReview'
 import { scenarios } from './scenarios'
 
 type Run = Schemas['RunDetail']
@@ -9,7 +10,8 @@ type Summary = Schemas['RunSummary']
 type Stage = Schemas['StageState']
 type Scenario = keyof typeof scenarios
 
-const live = new Map<number, { detail: Run; events: RunEvent[]; started: number }>()
+const live = new Map<number, { detail: Run; events: RunEvent[] }>()
+const previewIds = new Map<string, number>()
 let nextId = fixtures.runs.total + 1
 const seeded = fixtures.runs.items
 const terminalEvents = ['run.completed', 'run.awaiting_review', 'run.failed']
@@ -111,7 +113,7 @@ function createRun(scenarioId?: string, fileName?: string, forceFresh = false) {
     ...event, run_id: id, ts: shift(event.ts)!,
     data: event.type === 'decision.made' ? { ...event.data, decision } : event.data,
   })) : makeEvents(detail)
-  live.set(id, { detail, events, started })
+  live.set(id, { detail, events })
   return { run_id: id } satisfies Schemas['RunCreated']
 }
 
@@ -124,8 +126,11 @@ function currentRun(id: number): Run {
   const { detail, events } = record
   const last = events.at(-1)!
   if (Date.parse(last.ts) <= Date.now()) return detail
-  const elapsed = events.filter(event => Date.parse(event.ts) <= Date.now())
+  const available = events.filter(event => Date.parse(event.ts) <= Date.now())
+  const resumed = events.findLast(event => event.type === 'run.resumed')
+  const elapsed = resumed ? available.filter(event => event.seq > resumed.seq) : available
   const finished = new Set(elapsed.filter(event => event.type === 'stage.completed').map(event => event.stage))
+  if (resumed) for (const name of stageNames.slice(0, 6)) finished.add(name)
   const started = new Set(elapsed.filter(event => event.type === 'stage.started').map(event => event.stage))
   const decided = elapsed.some(event => event.type === 'decision.made')
   return {
@@ -145,7 +150,7 @@ function currentRun(id: number): Run {
 }
 
 function allRuns() {
-  return [...Array.from(live.keys()).reverse().map(currentRun), ...seeded]
+  return [...Array.from(live.keys()).reverse().map(currentRun), ...seeded.filter(run => !live.has(run.id))]
 }
 
 function listRuns({ q, offset = 0, limit = 50, ...filters }: NonNullable<RequestOptions['query']> = {}) {
@@ -162,7 +167,7 @@ function getQueue(route?: RequestOptions['query']) {
     ...run, question: run.decision?.handoff?.question ?? 'Review the invoice.',
     amount_at_risk: run.decision?.handoff?.amount_at_risk ?? null,
     age_hours: (Date.now() - Date.parse(run.created_at)) / 3_600_000,
-  })).concat(fixtures.queue.items)
+  })).concat(fixtures.queue.items.filter(run => !live.has(run.id)))
   const counts: Record<string, number> = {}
   for (const item of items) {
     if (item.route) counts[item.route] = (counts[item.route] ?? 0) + 1
@@ -235,8 +240,16 @@ export function mockRequest(method: string, path: string, options: RequestOption
   }
   if (method === 'POST' && path === '/demo/reset') {
     live.clear()
+    previewIds.clear()
     nextId = fixtures.runs.total + 1
     return { status: 'ok', runs: seeded.length }
+  }
+  const review = /^\/runs\/(\d+)\/review$/.exec(path)
+  if (method === 'POST' && review) {
+    const id = Number(review[1])
+    const run = currentRun(id)
+    live.set(id, mockReview(run, options.json as Schemas['ReviewRequest'], live.get(id)?.events ?? makeEvents(run)))
+    return currentRun(id)
   }
   if (method !== 'GET') return notFound()
   const match = /^\/runs\/(\d+)(\/audit)?$/.exec(path)
@@ -270,6 +283,18 @@ export function mockRequest(method: string, path: string, options: RequestOption
       }))
     default: return notFound()
   }
+}
+
+export function openMockScenario(scenario: string): number {
+  const current = previewIds.get(scenario)
+  if (current !== undefined) return current
+  const { run_id } = createRun(scenario, undefined, true)
+  previewIds.set(scenario, run_id)
+  return run_id
+}
+
+export function mockRunDocument(id: number) {
+  return live.get(id)?.detail ?? currentRun(id)
 }
 
 export function replayMockEvents(
