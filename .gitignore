@@ -1,0 +1,26 @@
+# Generated data and reports
+data/
+reports/*
+!reports/.gitkeep
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Web
+node_modules/
+dist/
+backend/app/static/
