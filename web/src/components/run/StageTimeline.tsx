@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react'
 import type { Schemas } from '@/api/client'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
+import { stages } from '@/lib/labels'
 import { istTime } from '@/lib/format'
 import type { FieldKey } from '@/lib/invoiceFields'
 import { pendingStage, resumeStage, stageOrder, type RunProgress } from '@/lib/runReducer'
@@ -36,7 +37,7 @@ export function StageTimeline({ run, progress, onHighlight }: {
         <Button variant="ghost" size="icon-sm" title="Expand next stage" aria-label="Expand next stage" onClick={() => step('next')}><ArrowDown className="sr-only" /><ShortcutHint id="nextStage" /></Button>
       </div>
     </header>
-    <span className="sr-only" aria-live="polite" aria-atomic="true">{updates?.message ?? ''}</span>
+    <span className="sr-only" aria-live="polite" aria-atomic="true">{updates?.message ?? (updates?.stage ? stages[updates.stage] : '')}</span>
     <div className="min-h-0 flex-1 overflow-y-auto">
       {stageOrder.map((name, index) => {
         const stage = run.stages.find(row => row.name === name) ?? pendingStage(name)

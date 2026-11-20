@@ -150,7 +150,7 @@ export function Inbox() {
             <ShortcutHint id="search" className="pointer-events-none absolute top-2 right-2" />
           </label>
           <RowKeys onStep={step} disabled={!filtered.length} />
-          <Button type="button" variant="ghost" size="sm" disabled={!entry} aria-label="Focus message preview" onClick={() => preview.current?.focus()}><ShortcutHint id="previewMessage" /></Button>
+          <Button type="button" variant="ghost" size="sm" disabled={!entry} aria-label="Space · Focus message preview" onClick={() => preview.current?.focus()}><ShortcutHint id="previewMessage" /></Button>
         </div>
         {!!uploadErrors.length && <ul className="space-y-1 border-b p-3 text-reject" role="alert">
           {uploadErrors.map((error, index) => <li key={index}>{error}</li>)}

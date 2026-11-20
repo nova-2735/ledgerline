@@ -96,7 +96,7 @@ export function PolicyPreview({ policy }: { policy: PolicyResponse }) {
             onClick={() => { setSection(group.key); document.getElementById('policy-' + group.key)?.scrollIntoView?.({ block: 'start' }) }}>{group.label}</button>)}
         </div>
       </nav>
-      <form className="relative min-h-0 min-w-0 overflow-auto bg-card" onSubmit={runPreview}>
+      <form tabIndex={0} aria-label="Policy settings" className="relative min-h-0 min-w-0 overflow-auto bg-card" onSubmit={runPreview}>
         {editing && <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b bg-card p-2">
           <span className="mr-auto px-1 text-meta text-muted-foreground">Preview on up to 50 recent runs</span>
           <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={closeEdit}>Cancel</Button>

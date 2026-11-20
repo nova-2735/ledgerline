@@ -7,7 +7,7 @@ export function ShortcutSheet({ open, onOpenChange }: { open: boolean; onOpenCha
     <DialogContent className="max-h-[85dvh] grid-rows-[auto_auto_minmax(0,1fr)] gap-2 sm:max-w-[680px]">
       <DialogTitle>Keyboard shortcuts</DialogTitle>
       <DialogDescription>Page shortcuts are active when you’re on that page.</DialogDescription>
-      <div className="grid content-start gap-3 overflow-y-auto pt-2 sm:grid-cols-2">
+      <div tabIndex={0} role="region" aria-label="Shortcut list" className="grid content-start gap-3 overflow-y-auto pt-2 sm:grid-cols-2">
         {shortcutGroups.map(group => <section key={group} className="min-w-0 border">
           <h3 className="border-b bg-muted px-2 py-1.5 text-section">{group}</h3>
           {shortcutEntries.filter(([, spec]) => spec.group === group).map(([id, spec]) =>

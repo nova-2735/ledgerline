@@ -13,7 +13,7 @@ export function AppSidebar({ collapsed, count, toggle, openPalette, showSidebarS
       <FileStack className="size-4 shrink-0 text-primary" aria-hidden="true" />{!collapsed && <span>Ledgerline</span>}
     </Link>
     <div className="px-2 pb-4">
-      <button type="button" onClick={openPalette} title="Search and commands" aria-label="Search and commands" className={cn('flex h-8 w-full items-center gap-2 rounded-sm border bg-background px-2 text-meta text-muted-foreground hover:bg-muted', collapsed && 'justify-center px-0')}>
+      <button type="button" onClick={openPalette} title="Search and commands" aria-label={collapsed ? "Search and commands" : undefined} className={cn('flex h-8 w-full items-center gap-2 rounded-sm border bg-background px-2 text-meta text-muted-foreground hover:bg-muted', collapsed && 'justify-center px-0')}>
         <Search className="size-4 shrink-0" aria-hidden="true" />{!collapsed && <><span>Search…</span><ShortcutHint id="palette" className="ml-auto" /></>}
       </button>
     </div>
@@ -22,12 +22,12 @@ export function AppSidebar({ collapsed, count, toggle, openPalette, showSidebarS
         {!collapsed && <div className="px-2 pb-1 text-meta font-medium text-muted-foreground">{section}</div>}
         {destinations.slice(index === 0 ? 0 : 4, index === 0 ? 4 : undefined).map(({ id, path, label }) => {
           const Icon = icons[id]
-          return <NavLink key={id} to={path} end={id === 'dashboard'} title={label} aria-label={label}
+          return <NavLink key={id} to={path} end={id === 'dashboard'} title={label} aria-label={collapsed ? label : undefined}
             className={({ isActive }) => cn('relative flex h-[30px] items-center gap-2 rounded-sm px-2 text-body text-muted-foreground hover:bg-muted hover:text-foreground', collapsed && 'justify-center px-0', isActive && 'bg-accent font-medium text-primary hover:bg-accent hover:text-primary')}>
             <Icon className="size-4 shrink-0" aria-hidden="true" />
             {!collapsed && <span className="truncate">{label}</span>}
             {id === 'queue' && count > 0 && <span className={cn('rounded-sm bg-muted px-1 text-meta text-foreground', collapsed && 'absolute right-0 top-0 text-[9px]')}>{count}</span>}
-            {!collapsed && <ShortcutHint className="ml-auto opacity-75" id={id} />}
+            {!collapsed && <ShortcutHint className="ml-auto" id={id} />}
           </NavLink>
         })}
       </div>)}
