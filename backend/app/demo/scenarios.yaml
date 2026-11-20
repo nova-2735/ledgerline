@@ -1,0 +1,531 @@
+# Demo documents: inbox scenarios S01–S15 and seeded history H01–H24.
+# Generator input and test oracle. Money and quantities are plain decimals here; the generator
+# formats them in each vendor's print style and computes subtotals, tax, round-off and totals.
+#
+# Line items either name a PO line (`po_line`, values copied from the document's `po`, any key
+# given here overrides) or are written out in full. `po` is the PO the document relates to (for
+# lookups only); `po_ref` is the reference text actually printed (null = not printed).
+
+today: 2026-11-20
+
+# Print style per supplier. currency_mark "₹" falls back to "Rs." when no font with the glyph
+# is available. po_format placeholders: {po} = full PO number, {n} = its 4-digit serial.
+styles:
+  V001: {template: classic_gst, date_format: "%d/%m/%Y", amounts: indian, currency_mark: "₹",
+         po_label: "PO No.", po_format: "{po}"}
+  V002: {template: service_letterhead, date_format: "%d-%m-%Y", amounts: indian,
+         currency_mark: "Rs.", po_label: "Your Ref", po_format: "KFPO/{n}", accent: "#1F4E79",
+         tagline: "Temperature-controlled warehousing & transport"}
+  V003: {template: classic_gst, date_format: "%d.%m.%Y", amounts: indian, currency_mark: "₹",
+         po_label: "P.O. No.", po_format: "{po}"}
+  V004: {template: small_trader, date_format: "%d/%m/%Y", amounts: indian, currency_mark: "Rs.",
+         po_label: "P.O.", po_format: "{n}", total_suffix: "/-",
+         tagline: "Dealers in Electrical Goods, Cables & Switchgear"}
+  V005: {template: modern, date_format: "%d %b %Y", amounts: western, currency_mark: "INR",
+         po_label: "Customer PO", po_format: "{po}", accent: "#0E6E6E"}
+  V006: {template: service_letterhead, date_format: "%d-%b-%Y", amounts: indian,
+         currency_mark: "₹", po_label: "Work Order Ref", po_format: "{po}", accent: "#2E7D32",
+         tagline: "Housekeeping · Deep cleaning · Pest control"}
+  V007: {template: modern, date_format: "%d/%m/%Y", amounts: indian, currency_mark: "₹",
+         po_label: "Order Ref", po_format: "KF PO {n}", accent: "#3949AB"}
+  V008: {template: classic_gst, date_format: "%d-%m-%Y", amounts: indian, currency_mark: "Rs.",
+         po_label: "PO#", po_format: "{n}"}
+  OMSAI: {template: small_trader, date_format: "%d/%m/%y", amounts: indian, currency_mark: "Rs.",
+          po_label: "PO", po_format: "{po}", total_suffix: "/-",
+          tagline: "General Order Suppliers - Packing Materials"}
+  V009: {template: small_trader, date_format: "%d.%m.%Y", amounts: indian, currency_mark: "Rs.",
+         po_label: "PO", po_format: "{po}",
+         tagline: "Commission Agents & Traders in Jaggery, Pulses & Grains"}
+
+# Suppliers that are not in the vendor master.
+suppliers:
+  OMSAI:
+    legal_name: "Om Sai Traders"
+    gstin: "29ABHPO1234D1ZW"
+    address: "No. 7, 4th Cross, Yeshwanthpur Industrial Suburb, Bengaluru, Karnataka 560022"
+    city: Bengaluru
+    state_code: "29"
+    phone: "+91 98450 21734"
+    email: omsaitraders.blr@mail.example
+    bank: {bank_name: "Karnataka Bank", account: "1562500100437801", ifsc: KARB0000156}
+
+inbox:
+  - id: S01
+    title: "Clean invoice, exact 3-way match"
+    edge_case: null
+    tags: [happy-path, digital, three-way]
+    supplier: V001
+    render: digital
+    email: {sender_name: "Sharma Packaging Accounts", sender_email: accounts@sharmapackaging.example,
+            subject: "Invoice SPI/26-27/0214 against KF-PO-0142", received_at: "2026-11-12T16:40:00+05:30"}
+    po: KF-PO-0142
+    invoice:
+      number: "SPI/26-27/0214"
+      date: "12/11/2026"
+      po_ref: "KF-PO-0142"
+      tax: IGST
+      lines:
+        - {po_line: 1}
+        - {po_line: 2}
+    expected:
+      outcome: APPROVE
+      route: none
+      required: []
+      allowed: []
+      posting: {lines: 2, gl_account: "510200", cost_center: BLR-PLANT-01, due_date: 2026-12-12}
+
+  - id: S02
+    title: "Close but not exact"
+    edge_case: null
+    tags: [digital, two-way, tolerance, round-off]
+    supplier: V002
+    render: digital
+    email: {sender_name: "Deccan Cold Chain Billing", sender_email: billing@deccancoldchain.example,
+            subject: "Tax invoice DCC/1123/26 — reefer trips", received_at: "2026-11-14T11:05:00+05:30"}
+    po: KF-PO-0137
+    invoice:
+      number: "DCC/1123/26"
+      date: "14-11-2026"
+      po_ref: "KFPO/0137"
+      tax: CGST_SGST
+      lines:
+        - {po_line: 1, rate: "8572.50"}
+      notes: ["Rate incl. fuel surcharge 0.85%"]
+    expected:
+      outcome: APPROVE
+      route: none
+      required: [PRICE_VARIANCE_WITHIN_TOL, ROUND_OFF_APPLIED]
+      allowed: []
+
+  - id: S03
+    title: "Split billing: third invoice over-bills"
+    edge_case: E1
+    tags: [digital, three-way, blanket-po, cumulative-billing]
+    supplier: V003
+    render: digital
+    email: {sender_name: "Apex Industrial Supplies", sender_email: ar@apexindustrial.example,
+            subject: "Invoice AIS/26-27/1188 — gloves (blanket PO KF-PO-0119)",
+            received_at: "2026-11-15T09:20:00+05:30"}
+    po: KF-PO-0119
+    invoice:
+      number: "AIS/26-27/1188"
+      date: "15.11.2026"
+      po_ref: "KF-PO-0119 (Blanket)"
+      tax: IGST
+      lines:
+        - {po_line: 1, qty: "50"}
+    expected:
+      outcome: HOLD
+      route: buyer
+      primary: QTY_EXCEEDS_PO_REMAINING
+      required: [QTY_EXCEEDS_PO_REMAINING, QTY_EXCEEDS_RECEIVED]
+      allowed: []
+      ledger_before: {ordered: "100", received: "90", billed: "60", remaining: "40",
+                      received_unbilled: "30"}
+      suggested: {approve_qty: "30", approve_amount: "51330.00", credit_note_qty: "20"}
+      amount_at_risk: "34220.00"
+
+  - id: S04
+    title: "Scanned invoice, no PO number"
+    edge_case: E2
+    tags: [scanned, po-inference, human-in-the-loop]
+    supplier: V004
+    render: scanned
+    scan: {dpi: 150, rotate: 1.3, noise: 8, blur: 0.6, jpeg_quality: 55, shadow: left,
+           handwriting: [{text: "Recd OK", color: blue, at: [0.66, 0.86]}], stamps: []}
+    email: {sender_name: "Rao & Sons", sender_email: raoandsons.electricals@mail.example,
+            subject: "bill", received_at: "2026-11-18T19:02:00+05:30"}
+    po: null
+    invoice:
+      number: "RSE/0457"
+      date: "18/11/2026"
+      po_ref: null
+      tax: IGST
+      lines:
+        - {code: null, desc: "Copper wire 2.5mm FRLS 90 mtr", hsn: "8544", qty: "10", uom: Coil,
+           rate: "2850.00", tax_rate: "18"}
+        - {code: null, desc: "MCB 32 Amp DP", hsn: "8536", qty: "20", uom: Nos, rate: "410.00",
+           tax_rate: "18"}
+    expected:
+      outcome: HOLD
+      route: ap_clerk
+      required: [PO_INFERRED]
+      allowed: [FIELD_LOW_CONFIDENCE]
+      po_candidates: {KF-PO-0151: [0.85, 0.95], KF-PO-0110: [0.35, 0.45], KF-PO-0128: [0.30, 0.40]}
+      after_review:
+        - {action: confirm_po, po_number: KF-PO-0151, fields_verified: true, outcome: APPROVE}
+
+  - id: S05
+    title: "Duplicate in disguise"
+    edge_case: E3
+    tags: [scanned, duplicate, re-keyed-number, stamp]
+    supplier: V001
+    render: scanned
+    scan: {dpi: 170, rotate: -0.8, noise: 6, blur: 0.4, jpeg_quality: 60, shadow: none,
+           stamps: [{text: "SECOND REMINDER — PAYMENT OVERDUE", color: red, angle: -12,
+                     at: [0.50, 0.425]}],
+           handwriting: [{text: "Pls release payment", color: blue, at: [0.10, 0.905]}]}
+    email: {sender_name: "Sharma Packaging Accounts", sender_email: accounts@sharmapackaging.example,
+            subject: "SECOND REMINDER: payment overdue — SPI-2627-187",
+            received_at: "2026-11-17T10:15:00+05:30"}
+    po: KF-PO-0126
+    invoice:
+      number: "SPI-2627-187"
+      date: "03-Oct-2026"
+      po_ref: "KF-PO-0126"
+      tax: IGST
+      lines:
+        - {po_line: 1}
+    expected:
+      outcome: REJECT
+      route: none
+      required: [DUPLICATE_SAME_INVOICE]
+      allowed: [QTY_EXCEEDS_PO_REMAINING, QTY_EXCEEDS_RECEIVED, FIELD_LOW_CONFIDENCE]
+      duplicate_of: H03
+      amount_at_risk: "68145.00"
+
+  - id: S06
+    title: "Bank details changed"
+    edge_case: E4
+    tags: [digital, fraud-signal, bank-change, look-alike-domain]
+    supplier: V007
+    render: digital
+    email: {sender_name: "Vertex Lab Instruments", sender_email: accounts@vertexlab-instruments.example,
+            subject: "Invoice VLI/26-27/0311 — please note updated bank details",
+            received_at: "2026-11-16T15:48:00+05:30"}
+    po: KF-PO-0146
+    invoice:
+      number: "VLI/26-27/0311"
+      date: "16/11/2026"
+      po_ref: "KF PO 0146"
+      tax: IGST
+      lines:
+        - {po_line: 1}
+        - {po_line: 2}
+      bank: {bank_name: "YES Bank", account: "012345678901", ifsc: YESB0000123}
+      phone: "+91 79 4000 9911"
+      supplier_email: accounts@vertexlab-instruments.example
+      notices: ["Please note our bank details have changed. Kindly update your records and remit to the new account."]
+    expected:
+      outcome: HOLD
+      route: treasury
+      primary: BANK_DETAILS_CHANGED
+      required: [BANK_DETAILS_CHANGED, SENDER_DOMAIN_MISMATCH]
+      allowed: []
+      vendor_email_draft: false
+      after_review:
+        - {action: verify_bank, note: "Called +91 79 2658 3300, spoke to accounts team", outcome: APPROVE,
+           note_contains: "update vendor master via change control before the payment run"}
+
+  - id: S07
+    title: "Bundled line vs itemised PO"
+    edge_case: null
+    tags: [digital, two-way, line-mapping, western-format]
+    supplier: V005
+    render: digital
+    email: {sender_name: "Nimbus Cloud Billing", sender_email: billing@nimbuscloud.example,
+            subject: "Nimbus Cloud invoice NCS/INV/2026/0932", received_at: "2026-11-05T08:00:00+05:30"}
+    po: KF-PO-0133
+    invoice:
+      number: "NCS/INV/2026/0932"
+      date: "05 Nov 2026"
+      po_ref: "KF-PO-0133"
+      tax: IGST
+      lines:
+        - {code: null, desc: "Nimbus WMS Enterprise — annual subscription incl. onboarding (25 users)",
+           hsn: "997331", qty: "1", uom: null, rate: "400000.00", tax_rate: "18"}
+    expected:
+      outcome: APPROVE
+      route: none
+      required: [LINES_BUNDLED]
+      allowed: []
+      posting: {split: {"550200": "360000.00", "550300": "40000.00"}}
+
+  - id: S08
+    title: "Tax embedded in price"
+    edge_case: null
+    tags: [digital, two-way, tax-inclusive]
+    supplier: V006
+    render: digital
+    email: {sender_name: "GreenLeaf Accounts", sender_email: accounts@greenleaffacility.example,
+            subject: "Invoice for October 2026 housekeeping", received_at: "2026-11-01T12:30:00+05:30"}
+    po: KF-PO-0140
+    invoice:
+      number: "GLF/26-27/0088"
+      date: "01-Nov-2026"
+      po_ref: "KF-PO-0140"
+      tax: CGST_SGST
+      prices_include_tax: true
+      lines:
+        - {po_line: 1, rate: "100000.00"}
+      notes: ["Rates inclusive of GST @ 18%"]
+    expected:
+      outcome: APPROVE
+      route: none
+      required: [TAX_INCLUSIVE_NORMALIZED]
+      allowed: []
+      taxable: "84745.76"
+
+  - id: S09
+    title: "IGST charged on an intra-state supply"
+    edge_case: null
+    tags: [digital, tax, return-to-vendor]
+    supplier: V008
+    render: digital
+    email: {sender_name: "Bharat Office Supplies", sender_email: sales@bharatoffice.example,
+            subject: "Bill BOS/2627/0583", received_at: "2026-11-17T17:10:00+05:30"}
+    po: KF-PO-0148
+    invoice:
+      number: "BOS/2627/0583"
+      date: "17-11-2026"
+      po_ref: "0148"
+      tax: IGST   # deliberate mistake: supplier and buyer are both in state 29
+      lines:
+        - {po_line: 1}
+        - {po_line: 2}
+    expected:
+      outcome: RETURN
+      route: vendor
+      required: [TAX_TYPE_MISMATCH]
+      allowed: []
+      draft_asks: {cgst: "3690.00", sgst: "3690.00"}
+
+  - id: S10
+    title: "Missing invoice number"
+    edge_case: null
+    tags: [digital, missing-field, return-to-vendor]
+    supplier: V002
+    render: digital
+    email: {sender_name: "Deccan Cold Chain Billing", sender_email: billing@deccancoldchain.example,
+            subject: "Cold storage charges — October", received_at: "2026-11-18T13:45:00+05:30"}
+    po: KF-PO-0149
+    invoice:
+      number: null
+      date: "18-11-2026"
+      po_ref: "KFPO/0149"
+      tax: CGST_SGST
+      lines:
+        - {po_line: 1}
+    expected:
+      outcome: RETURN
+      route: vendor
+      required: [FIELD_MISSING_INVOICE_NUMBER]
+      allowed: []
+
+  - id: S11
+    title: "Unknown vendor quoting another vendor's PO"
+    edge_case: null
+    tags: [digital, vendor-master, po-mismatch]
+    supplier: OMSAI
+    render: digital
+    email: {sender_name: "Om Sai Traders", sender_email: omsaitraders.blr@mail.example,
+            subject: "Invoice for stretch film supply", received_at: "2026-11-16T18:30:00+05:30"}
+    po: KF-PO-0142
+    invoice:
+      number: "OST/115"
+      date: "16/11/26"
+      po_ref: "KF-PO-0142"
+      tax: CGST_SGST
+      lines:
+        - {code: null, desc: "Pallet wrap stretch film 23 micron", hsn: "3920", qty: "40", uom: Roll,
+           rate: "640.00", tax_rate: "18"}
+    expected:
+      outcome: HOLD
+      route: procurement
+      primary: VENDOR_NOT_FOUND
+      required: [VENDOR_NOT_FOUND, PO_VENDOR_MISMATCH]
+      allowed: []
+      skipped_stages: [match_lines]
+
+  - id: S12
+    title: "Price over tolerance"
+    edge_case: null
+    tags: [digital, three-way, price-variance]
+    supplier: V001
+    render: digital
+    email: {sender_name: "Sharma Packaging Accounts", sender_email: accounts@sharmapackaging.example,
+            subject: "Invoice SPI/26-27/0229 — revised prices", received_at: "2026-11-18T11:20:00+05:30"}
+    po: KF-PO-0150
+    invoice:
+      number: "SPI/26-27/0229"
+      date: "18/11/2026"
+      po_ref: "KF-PO-0150"
+      tax: IGST
+      lines:
+        - {po_line: 1, rate: "662.00"}
+      notes: ["Prices revised w.e.f. 01-Nov-2026 due to resin cost increase"]
+    expected:
+      outcome: HOLD
+      route: buyer
+      primary: PRICE_VARIANCE_OVER_TOL
+      required: [PRICE_VARIANCE_OVER_TOL, AMOUNT_VARIANCE_OVER_TOL]
+      allowed: [ROUND_OFF_APPLIED]
+      variance: {price_pct: "8.52", delta: "3120.00", delta_incl_tax: "3681.60"}
+      what_if: {unit_price_pct: 10, header_abs: 5000, outcome: APPROVE}
+
+  - id: S13
+    title: "Over the auto-approval limit"
+    edge_case: null
+    tags: [digital, three-way, approval-limit]
+    supplier: V007
+    render: digital
+    email: {sender_name: "Vertex Lab Instruments", sender_email: accounts@vertexlab.example,
+            subject: "Invoice VLI/26-27/0298 — HPLC system", received_at: "2026-11-12T14:00:00+05:30"}
+    po: KF-PO-0144
+    invoice:
+      number: "VLI/26-27/0298"
+      date: "12/11/2026"
+      po_ref: "KF PO 0144"
+      tax: IGST
+      lines:
+        - {po_line: 1}
+    expected:
+      outcome: HOLD
+      route: controller
+      required: [APPROVAL_LIMIT_EXCEEDED]
+      allowed: []
+
+  - id: S14
+    title: "Proforma, not a tax invoice"
+    edge_case: null
+    tags: [digital, doc-type, return-to-vendor]
+    supplier: V005
+    render: digital
+    email: {sender_name: "Nimbus Cloud Billing", sender_email: billing@nimbuscloud.example,
+            subject: "Proforma for 10 additional users", received_at: "2026-11-19T09:30:00+05:30"}
+    po: KF-PO-0133
+    invoice:
+      title: "PROFORMA INVOICE"
+      number: "PI/2026/118"
+      date: "19 Nov 2026"
+      po_ref: "KF-PO-0133"
+      tax: IGST
+      lines:
+        - {code: null, desc: "Additional user licences (10 users), pro-rated to Oct 2027",
+           hsn: "997331", qty: "10", uom: null, rate: "14400.00", tax_rate: "18"}
+    expected:
+      outcome: RETURN
+      route: vendor
+      required: [DOC_PROFORMA, LINE_NOT_ON_PO]
+      allowed: []
+
+  - id: S15
+    title: "Blocked vendor"
+    edge_case: null
+    tags: [digital, vendor-master, blocked]
+    supplier: V009
+    render: digital
+    email: {sender_name: "Lotus Agro Traders", sender_email: lotusagro@mail.example,
+            subject: "Invoice LAT/26-27/044 jaggery", received_at: "2026-11-14T10:00:00+05:30"}
+    po: null
+    invoice:
+      number: "LAT/26-27/044"
+      date: "14.11.2026"
+      po_ref: null
+      tax: IGST
+      lines:
+        - {code: null, desc: "Jaggery powder, 25 kg bag", hsn: "1701", qty: "25", uom: Bag,
+           rate: "1800.00", tax_rate: "5"}
+    expected:
+      outcome: REJECT
+      route: none
+      required: [VENDOR_BLOCKED]
+      allowed: [PO_MISSING]
+
+# Listed in processing order (the Processed column; ties keep table order). Times of day are
+# drawn by the generator from random.Random(42). Unless stated: digital, bank = master,
+# PO reference printed in the vendor's style.
+history:
+  - {id: H04, supplier: V001, po: KF-PO-0101, processed: 2026-09-04,
+     invoice: {number: "SPI/26-27/0121", date: "03/09/2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H05, supplier: V002, po: KF-PO-0102, processed: 2026-09-06,
+     invoice: {number: "DCC/0981/26", date: "05-09-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H06, supplier: V006, po: KF-PO-0103, processed: 2026-09-03,
+     invoice: {number: "GLF/26-27/0061", date: "01-Sep-2026", tax: CGST_SGST, prices_include_tax: true,
+               lines: [{po_line: 1, rate: "100000.00"}], notes: ["Rates inclusive of GST @ 18%"]},
+     expected: {outcome: APPROVE, route: none, required: [TAX_INCLUSIVE_NORMALIZED], allowed: []}}
+  - {id: H07, supplier: V008, po: KF-PO-0104, processed: 2026-09-09,
+     invoice: {number: "BOS/2627/0411", date: "08-09-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H08, supplier: V005, po: KF-PO-0105, processed: 2026-09-11,
+     invoice: {number: "NCS/INV/2026/0741", date: "10 Sep 2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H01, supplier: V003, po: KF-PO-0119, processed: 2026-09-24,
+     invoice: {number: "AIS/26-27/1041", date: "22.09.2026", po_ref: "KF-PO-0119 (Blanket)", tax: IGST,
+               lines: [{po_line: 1, qty: "40"}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H09, supplier: V001, po: KF-PO-0106, processed: 2026-09-28,
+     invoice: {number: "SPI/26-27/0168", date: "26/09/2026", tax: IGST,
+               lines: [{po_line: 1, rate: "73.08"}]},
+     expected: {outcome: APPROVE, route: none, required: [PRICE_VARIANCE_WITHIN_TOL, ROUND_OFF_APPLIED],
+                allowed: []}}
+  - {id: H10, supplier: V002, po: KF-PO-0107, processed: 2026-10-03,
+     invoice: {number: "DCC/1032/26", date: "02-10-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H11, supplier: V008, po: KF-PO-0108, processed: 2026-10-01,
+     invoice: {number: "BOS/2627/0455", date: "30-09-2026", tax: CGST_SGST,
+               lines: [{po_line: 1, rate: "1749.00"}]},
+     expected: {outcome: HOLD, route: buyer, required: [PRICE_VARIANCE_OVER_TOL, AMOUNT_VARIANCE_OVER_TOL],
+                allowed: [ROUND_OFF_APPLIED]},
+     review: {action: approve, reviewer: "Priya Nair (AP)", date: 2026-10-02,
+              note: "Buyer confirmed revised toner price (email 1 Oct)"}}
+  - {id: H12, supplier: V006, po: KF-PO-0109, processed: 2026-10-03,
+     invoice: {number: "GLF/26-27/0074", date: "01-Oct-2026", tax: CGST_SGST, prices_include_tax: true,
+               lines: [{po_line: 1, rate: "100000.00"}], notes: ["Rates inclusive of GST @ 18%"]},
+     expected: {outcome: APPROVE, route: none, required: [TAX_INCLUSIVE_NORMALIZED], allowed: []}}
+  - {id: H03, supplier: V001, po: KF-PO-0126, processed: 2026-10-06,
+     invoice: {number: "SPI/26-27/0187", date: "03/10/2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H13, supplier: V004, po: KF-PO-0110, processed: 2026-10-10, render: scanned,
+     scan: {dpi: 160, rotate: -1.0, noise: 6, blur: 0.5, jpeg_quality: 60, shadow: none,
+            handwriting: [], stamps: []},
+     invoice: {number: "RSE/0431", date: "09/10/2026", po_ref: "110", tax: IGST,
+               lines: [{po_line: 1, code: null, desc: "MCB 32 Amp DP"},
+                       {po_line: 2, code: null, desc: "Copper wire 2.5mm FRLS 90 mtr"}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: [FIELD_LOW_CONFIDENCE]},
+     review_if_raised: {action: approve, fields_verified: true, reviewer: "Priya Nair (AP)",
+                        date: 2026-10-10, note: "Checked scan against the delivery challan"}}
+  - {id: H02, supplier: V003, po: KF-PO-0119, processed: 2026-10-19,
+     invoice: {number: "AIS/26-27/1107", date: "17.10.2026", po_ref: "KF-PO-0119 (Blanket)", tax: IGST,
+               lines: [{po_line: 1, qty: "20"}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H14, supplier: V001, po: KF-PO-0111, processed: 2026-10-21,
+     invoice: {number: "SPI/26-27/0198", date: "20/10/2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H21, supplier: V005, po: KF-PO-0117, processed: 2026-10-21,
+     invoice: {number: "NCS/INV/2026/0866", date: "20 Oct 2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: HOLD, route: controller, required: [APPROVAL_LIMIT_EXCEEDED], allowed: []},
+     review: {action: approve, reviewer: "R. Menon (Finance Controller)", date: 2026-10-22,
+              note: "Budgeted in FY26-27 IT plan"}}
+  - {id: H15, supplier: V002, po: KF-PO-0112, processed: 2026-10-23,
+     invoice: {number: null, date: "22-10-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: RETURN, route: vendor, required: [FIELD_MISSING_INVOICE_NUMBER], allowed: []},
+     review: {action: send_to_vendor, reviewer: "Priya Nair (AP)", date: 2026-10-23,
+              note: "Asked Deccan Cold Chain to re-issue with an invoice number"}}
+  - {id: H16, supplier: V002, po: KF-PO-0112, processed: 2026-10-26,
+     invoice: {number: "DCC/1088/26", date: "24-10-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H17, supplier: V008, po: KF-PO-0113, processed: 2026-10-28,
+     invoice: {number: "BOS/2627/0503", date: "27-10-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H18, supplier: V003, po: KF-PO-0114, processed: 2026-10-29,
+     invoice: {number: "AIS/26-27/1132", date: "28.10.2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H22, supplier: V007, po: KF-PO-0118, processed: 2026-10-29,
+     invoice: {number: "VLI/26-27/0277", date: "28/10/2026", tax: IGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H19, supplier: V001, po: KF-PO-0111, processed: 2026-10-30, copy_of: H14,
+     expected: {outcome: REJECT, route: none, required: [DUPLICATE_SAME_FILE],
+                allowed: [DUPLICATE_SAME_INVOICE, QTY_EXCEEDS_PO_REMAINING, QTY_EXCEEDS_RECEIVED]}}
+  - {id: H20, supplier: V006, po: KF-PO-0116, processed: 2026-10-30,
+     invoice: {number: "GLF/26-27/0081", date: "29-Oct-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H24, supplier: V002, po: KF-PO-0121, processed: 2026-11-13,
+     invoice: {number: "DCC/1109/26", date: "12-11-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: APPROVE, route: none, required: [], allowed: []}}
+  - {id: H23, supplier: V008, po: KF-PO-0120, processed: 2026-11-16,
+     invoice: {number: "BOS/2627/0571", date: "15-11-2026", tax: CGST_SGST, lines: [{po_line: 1}]},
+     expected: {outcome: HOLD, route: receiving, required: [GOODS_NOT_RECEIVED], allowed: []},
+     awaiting_review: true}

@@ -1,0 +1,289 @@
+# Synthetic procurement world for the demo. All entities are fictional; GSTINs are synthetic but
+# checksum-valid and emails use the reserved .example domain.
+
+company:
+  name: "Kestrel Foods Pvt. Ltd."
+  gstin: "29AAJCK4417M1Z1"
+  state_code: "29"
+  address: "Plot 14, 2nd Phase, Peenya Industrial Area, Bengaluru, Karnataka 560058"
+
+states:
+  "06": Haryana
+  "24": Gujarat
+  "27": Maharashtra
+  "29": Karnataka
+  "33": Tamil Nadu
+  "36": Telangana
+
+vendors:
+  - vendor_id: V001
+    legal_name: "Sharma Packaging Industries"
+    aliases: ["Sharma Packaging"]
+    gstin: "27AAKFS2231P1ZS"
+    address: "Plot 47, Bhosari MIDC, Pune, Maharashtra 411026"
+    city: Pune
+    email: accounts@sharmapackaging.example
+    phone_on_file: "+91 20 2712 4455"
+    bank_name: "HDFC Bank"
+    bank_account_number: "50200012345678"
+    bank_ifsc: HDFC0000123
+    status: active
+    block_reason: null
+    payment_terms_days: 30
+    category: packaging
+  - vendor_id: V002
+    legal_name: "Deccan Cold Chain Logistics Pvt. Ltd."
+    aliases: ["Deccan Cold Chain", "DCC Logistics"]
+    gstin: "29AADCD7781K1Z1"
+    address: "No. 112, KIADB Industrial Area, Bommasandra, Bengaluru, Karnataka 560099"
+    city: Bengaluru
+    email: billing@deccancoldchain.example
+    phone_on_file: "+91 80 4123 7788"
+    bank_name: "ICICI Bank"
+    bank_account_number: "004501234567"
+    bank_ifsc: ICIC0000456
+    status: active
+    block_reason: null
+    payment_terms_days: 15
+    category: logistics
+  - vendor_id: V003
+    legal_name: "Apex Industrial Supplies"
+    aliases: []
+    gstin: "33AAPFA5560G1ZH"
+    address: "No. 23, SIDCO Industrial Estate, Guindy, Chennai, Tamil Nadu 600032"
+    city: Chennai
+    email: ar@apexindustrial.example
+    phone_on_file: "+91 44 2625 1100"
+    bank_name: "Indian Overseas Bank"
+    bank_account_number: "078901234567890"
+    bank_ifsc: IOBA0000789
+    status: active
+    block_reason: null
+    payment_terms_days: 30
+    category: mro
+  - vendor_id: V004
+    legal_name: "Rao & Sons Electricals"
+    aliases: []
+    gstin: "36ABCPR4410H1ZV"
+    address: "6-3-1192, Begumpet Main Road, Hyderabad, Telangana 500016"
+    city: Hyderabad
+    email: raoandsons.electricals@mail.example
+    phone_on_file: "+91 40 2766 5544"
+    bank_name: "State Bank of India"
+    bank_account_number: "30987654321"
+    bank_ifsc: SBIN0020345
+    status: active
+    block_reason: null
+    payment_terms_days: 15
+    category: electrical
+  - vendor_id: V005
+    legal_name: "Nimbus Cloud Software Pvt. Ltd."
+    aliases: ["Nimbus Cloud"]
+    gstin: "06AAECN8890Q1ZI"
+    address: "Tower B, 9th Floor, Sector 39, Gurugram, Haryana 122001"
+    city: Gurugram
+    email: billing@nimbuscloud.example
+    phone_on_file: "+91 124 455 6600"
+    bank_name: "Kotak Mahindra Bank"
+    bank_account_number: "9812345670"
+    bank_ifsc: KKBK0004321
+    status: active
+    block_reason: null
+    payment_terms_days: 30
+    category: software
+  - vendor_id: V006
+    legal_name: "GreenLeaf Facility Services LLP"
+    aliases: []
+    gstin: "29AAOFG3321L1Z3"
+    address: "No. 41, 1st Main, Rajajinagar Industrial Town, Bengaluru, Karnataka 560044"
+    city: Bengaluru
+    email: accounts@greenleaffacility.example
+    phone_on_file: "+91 80 2839 4400"
+    bank_name: "Axis Bank"
+    bank_account_number: "917020012345678"
+    bank_ifsc: UTIB0000999
+    status: active
+    block_reason: null
+    payment_terms_days: 15
+    category: facilities
+  - vendor_id: V007
+    legal_name: "Vertex Lab Instruments Pvt. Ltd."
+    aliases: ["Vertex Lab"]
+    gstin: "24AACCV6672E1ZB"
+    address: "Plot 9, GIDC Estate, Vatva, Ahmedabad, Gujarat 382445"
+    city: Ahmedabad
+    email: accounts@vertexlab.example
+    phone_on_file: "+91 79 2658 3300"
+    bank_name: "HDFC Bank"
+    bank_account_number: "50200087654321"
+    bank_ifsc: HDFC0000567
+    status: active
+    block_reason: null
+    payment_terms_days: 45
+    category: lab_equipment
+  - vendor_id: V008
+    legal_name: "Bharat Office Supplies"
+    aliases: ["Bharat Office"]
+    gstin: "29AQZPB7715N1ZX"
+    address: "No. 18, Avenue Road, Chickpet, Bengaluru, Karnataka 560002"
+    city: Bengaluru
+    email: sales@bharatoffice.example
+    phone_on_file: "+91 80 2296 1122"
+    bank_name: "Canara Bank"
+    bank_account_number: "0111201000456"
+    bank_ifsc: CNRB0000111
+    status: active
+    block_reason: null
+    payment_terms_days: 30
+    category: office_supplies
+  - vendor_id: V009
+    legal_name: "Lotus Agro Traders"
+    aliases: []
+    gstin: "27AAHFL9921C1ZA"
+    address: "Shop 12, APMC Market Yard, Panchavati, Nashik, Maharashtra 422003"
+    city: Nashik
+    email: lotusagro@mail.example
+    phone_on_file: "+91 253 257 8800"
+    bank_name: "Bank of Maharashtra"
+    bank_account_number: "60123456789"
+    bank_ifsc: MAHB0000222
+    status: blocked
+    block_reason: "Failed food-safety audit, Aug 2026"
+    payment_terms_days: 30
+    category: agri_commodities
+
+# Line fields: [line_no, item_code, description, quantity, uom, unit_price, tax_rate_pct, hsn_sac, gl_account]
+purchase_orders:
+  # --- POs used by the inbox ---
+  - {po_number: KF-PO-0119, vendor_id: V003, po_date: 2026-09-05, match_type: three_way,
+     buyer_name: "Anita Rao", cost_center: BLR-PLANT-01, lines: [
+       [1, MRO-GLV-NIT, "Nitrile safety gloves, food grade, box of 100", "100", Box, "1450.00", "18", "4015", "510500"]]}
+  - {po_number: KF-PO-0126, vendor_id: V001, po_date: 2026-09-25, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-CB-0450, "Corrugated shipper box 450x300x250 mm, 5-ply", "1500", Nos, "38.50", "18", "4819", "510200"]]}
+  - {po_number: KF-PO-0128, vendor_id: V004, po_date: 2026-09-18, match_type: three_way,
+     buyer_name: "Anita Rao", cost_center: BLR-MAINT, lines: [
+       [1, ELC-LED-40, "LED panel light 40W, 2x2 ft", "30", Nos, "1150.00", "18", "9405", "510600"]]}
+  - {po_number: KF-PO-0133, vendor_id: V005, po_date: 2026-10-08, match_type: two_way,
+     buyer_name: "Karthik Iyer", cost_center: BLR-IT, lines: [
+       [1, SW-NIM-ENT, "Nimbus WMS Enterprise subscription, 12 months, 25 users", "1", Nos, "360000.00", "18", "997331", "550200"],
+       [2, SW-NIM-ONB, "Implementation & onboarding (one-time)", "1", Nos, "40000.00", "18", "998313", "550300"]]}
+  - {po_number: KF-PO-0137, vendor_id: V002, po_date: 2026-10-01, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-RF-BLR, "Reefer transport Bengaluru–Hosur, 10T, per trip", "12", Trip, "8500.00", "18", "996729", "520100"]]}
+  - {po_number: KF-PO-0140, vendor_id: V006, po_date: 2026-10-01, match_type: two_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, FM-HK-MON, "Housekeeping services – Peenya plant, October 2026", "1", Month, "84745.76", "18", "998533", "540100"]]}
+  - {po_number: KF-PO-0142, vendor_id: V001, po_date: 2026-10-28, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-CB-0450, "Corrugated shipper box 450x300x250 mm, 5-ply", "2000", Nos, "38.50", "18", "4819", "510200"],
+       [2, PKG-TP-0048, "BOPP packing tape 48 mm x 65 m, brown", "300", Roll, "72.00", "18", "3919", "510200"]]}
+  - {po_number: KF-PO-0144, vendor_id: V007, po_date: 2026-10-25, match_type: three_way,
+     buyer_name: "Dr. S. Kulkarni", cost_center: BLR-QA-LAB, lines: [
+       [1, LAB-HPLC-01, "HPLC system with UV detector, installation included", "1", Nos, "620000.00", "18", "9027", "160500"]]}
+  - {po_number: KF-PO-0146, vendor_id: V007, po_date: 2026-11-01, match_type: three_way,
+     buyer_name: "Dr. S. Kulkarni", cost_center: BLR-QA-LAB, lines: [
+       [1, LAB-PHM-01, "Benchtop pH meter with ATC probe", "2", Nos, "18500.00", "18", "9027", "530300"],
+       [2, LAB-BUF-SET, "pH buffer solution set (4.01/7.00/10.01), 500 ml", "6", Set, "1250.00", "18", "3822", "530300"]]}
+  - {po_number: KF-PO-0148, vendor_id: V008, po_date: 2026-11-04, match_type: three_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, OFF-A4-75, "A4 copier paper 75 GSM, ream of 500", "100", Ream, "245.00", "18", "4802", "560100"],
+       [2, OFF-TON-88A, "Toner cartridge 88A compatible", "10", Nos, "1650.00", "18", "8443", "560100"]]}
+  - {po_number: KF-PO-0149, vendor_id: V002, po_date: 2026-10-01, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-CS-PLT, "Cold storage rental, per pallet-month, October 2026", "40", Pallet-month, "950.00", "18", "996721", "520200"]]}
+  - {po_number: KF-PO-0150, vendor_id: V001, po_date: 2026-11-06, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-SW-STR, "Stretch wrap film 500 mm x 23 micron", "60", Roll, "610.00", "18", "3920", "510200"]]}
+  - {po_number: KF-PO-0151, vendor_id: V004, po_date: 2026-11-03, match_type: three_way,
+     buyer_name: "Anita Rao", cost_center: BLR-MAINT, lines: [
+       [1, ELC-CBL-25, "FRLS copper cable 2.5 sq mm, 90 m coil", "10", Coil, "2850.00", "18", "8544", "510600"],
+       [2, ELC-MCB-32, "MCB 32A double pole", "20", Nos, "410.00", "18", "8536", "510600"]]}
+
+  # --- Routine POs behind the seeded history ---
+  - {po_number: KF-PO-0101, vendor_id: V001, po_date: 2026-08-28, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-CB-0450, "Corrugated shipper box 450x300x250 mm, 5-ply", "1000", Nos, "38.50", "18", "4819", "510200"]]}
+  - {po_number: KF-PO-0102, vendor_id: V002, po_date: 2026-08-25, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-RF-BLR, "Reefer transport Bengaluru–Hosur, 10T, per trip", "10", Trip, "8500.00", "18", "996729", "520100"]]}
+  - {po_number: KF-PO-0103, vendor_id: V006, po_date: 2026-09-01, match_type: two_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, FM-HK-MON, "Housekeeping services – Peenya plant, August 2026", "1", Month, "84745.76", "18", "998533", "540100"]]}
+  - {po_number: KF-PO-0104, vendor_id: V008, po_date: 2026-09-02, match_type: three_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, OFF-A4-75, "A4 copier paper 75 GSM, ream of 500", "80", Ream, "245.00", "18", "4802", "560100"]]}
+  - {po_number: KF-PO-0105, vendor_id: V005, po_date: 2026-09-01, match_type: two_way,
+     buyer_name: "Karthik Iyer", cost_center: BLR-IT, lines: [
+       [1, SW-NIM-SUP, "Premium support add-on, Q3 2026", "1", Nos, "45000.00", "18", "997331", "550200"]]}
+  - {po_number: KF-PO-0106, vendor_id: V001, po_date: 2026-09-15, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-TP-0048, "BOPP packing tape 48 mm x 65 m, brown", "500", Roll, "72.00", "18", "3919", "510200"]]}
+  - {po_number: KF-PO-0107, vendor_id: V002, po_date: 2026-09-20, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-RF-BLR, "Reefer transport Bengaluru–Hosur, 10T, per trip", "8", Trip, "8500.00", "18", "996729", "520100"]]}
+  - {po_number: KF-PO-0108, vendor_id: V008, po_date: 2026-09-25, match_type: three_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, OFF-TON-88A, "Toner cartridge 88A compatible", "12", Nos, "1650.00", "18", "8443", "560100"]]}
+  - {po_number: KF-PO-0109, vendor_id: V006, po_date: 2026-10-01, match_type: two_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, FM-HK-MON, "Housekeeping services – Peenya plant, September 2026", "1", Month, "84745.76", "18", "998533", "540100"]]}
+  - {po_number: KF-PO-0110, vendor_id: V004, po_date: 2026-09-30, match_type: three_way,
+     buyer_name: "Anita Rao", cost_center: BLR-MAINT, lines: [
+       [1, ELC-MCB-32, "MCB 32A double pole", "15", Nos, "410.00", "18", "8536", "510600"],
+       [2, ELC-CBL-25, "FRLS copper cable 2.5 sq mm, 90 m coil", "4", Coil, "2850.00", "18", "8544", "510600"]]}
+  - {po_number: KF-PO-0111, vendor_id: V001, po_date: 2026-10-08, match_type: three_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-PLANT-01, lines: [
+       [1, PKG-CB-0450, "Corrugated shipper box 450x300x250 mm, 5-ply", "800", Nos, "38.50", "18", "4819", "510200"]]}
+  - {po_number: KF-PO-0112, vendor_id: V002, po_date: 2026-10-10, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-RF-BLR, "Reefer transport Bengaluru–Hosur, 10T, per trip", "6", Trip, "8500.00", "18", "996729", "520100"]]}
+  - {po_number: KF-PO-0113, vendor_id: V008, po_date: 2026-10-20, match_type: three_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, OFF-A4-75, "A4 copier paper 75 GSM, ream of 500", "60", Ream, "245.00", "18", "4802", "560100"]]}
+  - {po_number: KF-PO-0114, vendor_id: V003, po_date: 2026-10-12, match_type: three_way,
+     buyer_name: "Anita Rao", cost_center: BLR-PLANT-01, lines: [
+       [1, MRO-HNET, "Hair nets, disposable, pack of 100", "50", Pack, "320.00", "18", "6505", "510500"]]}
+  - {po_number: KF-PO-0116, vendor_id: V006, po_date: 2026-10-22, match_type: two_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, FM-DC-01, "Deep cleaning – cold room, one-time", "1", Job, "18000.00", "18", "998533", "540100"]]}
+  - {po_number: KF-PO-0117, vendor_id: V005, po_date: 2026-10-15, match_type: two_way,
+     buyer_name: "Karthik Iyer", cost_center: BLR-IT, lines: [
+       [1, SW-NIM-ANL, "Analytics module, 12 months", "1", Nos, "450000.00", "18", "997331", "550200"]]}
+  - {po_number: KF-PO-0118, vendor_id: V007, po_date: 2026-10-16, match_type: three_way,
+     buyer_name: "Dr. S. Kulkarni", cost_center: BLR-QA-LAB, lines: [
+       [1, LAB-BUF-SET, "pH buffer solution set (4.01/7.00/10.01), 500 ml", "10", Set, "1250.00", "18", "3822", "530300"]]}
+  - {po_number: KF-PO-0120, vendor_id: V008, po_date: 2026-11-10, match_type: three_way,
+     buyer_name: "Meera Nair", cost_center: BLR-ADMIN, lines: [
+       [1, OFF-TON-88A, "Toner cartridge 88A compatible", "8", Nos, "1650.00", "18", "8443", "560100"]]}
+  - {po_number: KF-PO-0121, vendor_id: V002, po_date: 2026-11-02, match_type: two_way,
+     buyer_name: "Vikram Shetty", cost_center: BLR-WH-01, lines: [
+       [1, LOG-RF-BLR, "Reefer transport Bengaluru–Hosur, 10T, per trip", "5", Trip, "8500.00", "18", "996729", "520100"]]}
+
+# [grn_number, po_number, line_no, quantity_received, received_date]
+goods_receipts:
+  - [GRN-0801, KF-PO-0101, 1, "1000", 2026-09-01]
+  - [GRN-0812, KF-PO-0104, 1, "80", 2026-09-06]
+  - [GRN-0855, KF-PO-0119, 1, "40", 2026-09-20]
+  - [GRN-0840, KF-PO-0106, 1, "500", 2026-09-22]
+  - [GRN-0870, KF-PO-0128, 1, "30", 2026-09-28]
+  - [GRN-0861, KF-PO-0108, 1, "12", 2026-09-29]
+  - [GRN-0880, KF-PO-0126, 1, "1500", 2026-10-01]
+  - [GRN-0872, KF-PO-0110, 1, "15", 2026-10-08]
+  - [GRN-0872, KF-PO-0110, 2, "4", 2026-10-08]
+  - [GRN-0890, KF-PO-0119, 1, "20", 2026-10-15]
+  - [GRN-0885, KF-PO-0111, 1, "800", 2026-10-16]
+  - [GRN-0891, KF-PO-0113, 1, "60", 2026-10-24]
+  - [GRN-0893, KF-PO-0114, 1, "50", 2026-10-26]
+  - [GRN-0897, KF-PO-0118, 1, "10", 2026-10-27]
+  - [GRN-0931, KF-PO-0142, 1, "2000", 2026-11-10]
+  - [GRN-0931, KF-PO-0142, 2, "300", 2026-11-10]
+  - [GRN-0950, KF-PO-0144, 1, "1", 2026-11-11]
+  - [GRN-0940, KF-PO-0119, 1, "30", 2026-11-12]
+  - [GRN-0951, KF-PO-0151, 1, "10", 2026-11-13]
+  - [GRN-0951, KF-PO-0151, 2, "20", 2026-11-13]
+  - [GRN-0958, KF-PO-0146, 1, "2", 2026-11-14]
+  - [GRN-0958, KF-PO-0146, 2, "6", 2026-11-14]
+  - [GRN-0960, KF-PO-0148, 1, "100", 2026-11-15]
+  - [GRN-0960, KF-PO-0148, 2, "10", 2026-11-15]
+  - [GRN-0962, KF-PO-0150, 1, "60", 2026-11-16]

@@ -49,7 +49,7 @@ web-build:
 check: lint typecheck test web-build
 
 generate:
-	@echo "make generate: available after B02"
+	$(UV_RUN) python -m app.demo.generate --out "$(CURDIR)/data/demo"
 
 seed:
 	@echo "make seed: available after B08"
