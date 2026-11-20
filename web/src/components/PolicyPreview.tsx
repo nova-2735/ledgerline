@@ -107,7 +107,7 @@ export function PolicyPreview({ policy }: { policy: PolicyResponse }) {
         {editing && !canSave.isPending && !editable && <p className="border-b px-3 py-2 text-meta text-muted-foreground">Policy changes are applied by editing the policy file in this build.</p>}
         {!valid && <p role="alert" className="border-b px-3 py-2 text-meta text-reject">Enter a valid value for each changed setting. Percentages must be at most 100.</p>}
         {preview.isError && <ErrorState title="Could not preview the policy impact" error={preview.error} retry={() => preview.mutate({ overrides, limit: 50 })} />}
-        {save.isError && !saveUnavailable && <ErrorState title="Could not save the policy" error={save.error} />}
+        {save.isError && !saveUnavailable && <ErrorState title="Could not save the policy" error={save.error} retry={() => save.mutate({ overrides })} />}
         {preview.data && <section className="border-b" aria-live="polite">
           <header className="panel-title"><h2>Preview results</h2>
             <span className="text-meta font-normal text-muted-foreground">{preview.data.changed.length} changed · {preview.data.unchanged} unchanged</span>

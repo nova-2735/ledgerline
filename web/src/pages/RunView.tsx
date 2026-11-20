@@ -84,6 +84,12 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
   const previous = index >= 0 ? all.data?.[index + 1]?.id : undefined
   const next = index > 0 ? all.data?.[index - 1]?.id : undefined
   const [field, setField] = useState<FieldKey | null>(null)
+  const [evidence, showEvidence] = useState<{ field: FieldKey } | null>(null)
+  function jumpToEvidence(next: FieldKey) {
+    setSheet(false)
+    setField(null)
+    showEvidence({ field: next })
+  }
   const [action, setAction] = useState<Action | null>(null)
   const [tab, setTab] = useState<RunTab>('decision')
   const [sheet, setSheet] = useState(false)
@@ -140,7 +146,7 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
       </TabsTrigger>)}
     </TabsList>
     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2.5">
-      <TabsContent value="decision"><DecisionPanel run={run} onAction={ask} onHighlight={setField} /></TabsContent>
+      <TabsContent value="decision"><DecisionPanel run={run} onAction={ask} onHighlight={setField} onEvidence={jumpToEvidence} /></TabsContent>
       <TabsContent value="fields"><FieldsPanel extraction={run.extraction} onHighlight={setField} /></TabsContent>
       <TabsContent value="matching"><MatchingPanel run={run} /></TabsContent>
       <TabsContent value="audit"><AuditPanel run={run} events={progress.events} download={() => audit.mutate()} /></TabsContent>
@@ -158,7 +164,7 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
     {original.isError && <ErrorState title="Could not open the invoice PDF" error={original.error} retry={() => original.mutate()} />}
     <div className="grid min-h-0 flex-1 gap-px bg-border md:grid-cols-[minmax(230px,0.85fr)_minmax(0,2fr)] xl:grid-cols-[300px_minmax(0,1fr)_420px]">
       <StageTimeline run={run} progress={progress} onHighlight={setField} />
-      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.health.ocr_available} original={openOriginal} />
+      <DocumentViewer run={run} active={field ?? evidence?.field ?? null} evidence={evidence} ocrAvailable={health.data?.health.ocr_available} original={openOriginal} />
       <section aria-label="Decision and evidence" className="hidden min-h-0 min-w-0 overflow-hidden bg-card xl:block">{tabs()}</section>
     </div>
     <div className="sticky bottom-0 flex justify-end border-t bg-card p-2 xl:hidden">

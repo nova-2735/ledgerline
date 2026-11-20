@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 export type Folder = { id: string; label: string; count: number; age?: string; marker?: ReactNode }
 
-export function WorkFolders({ title, folders, active, select }: { title: string; folders: Folder[]; active: string; select: (id: string) => void }) {
+export function WorkFolders({ title, folders, active, select, children }: { title: string; folders: Folder[]; active: string; select: (id: string) => void; children?: ReactNode }) {
   return <nav className="min-h-0 min-w-0 overflow-auto bg-card" aria-label={title}>
     <h2 className="panel-title hidden lg:flex">{title}</h2>
     <div className="flex gap-1 p-2 lg:grid">
@@ -16,5 +16,6 @@ export function WorkFolders({ title, folders, active, select }: { title: string;
         </span>
       </button>)}
     </div>
+  {children}
   </nav>
 }

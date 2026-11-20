@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom'
 import type { Schemas } from '@/api/client'
 import { outcomeColors, StatusSquare } from '@/components/OutcomeBadge'
 import { dayOutcomes, outcomeLabels } from '@/lib/dashboard'
-import { istDate } from '@/lib/format'
+import { inr, istDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 type Day = Schemas['StatsDay']
 
-export default function Decisions({ bars }: { bars: Day[] }) {
+export default function Decisions({ bars, amounts, today }: { bars: Day[]; amounts: Map<string, number>; today: string }) {
   const totals = dayOutcomes.map(outcome => bars.reduce((total, bar) => total + bar[outcome], 0))
   const scale = Math.max(4, Math.ceil(Math.max(...bars.map(bar => dayOutcomes.reduce((sum, outcome) => sum + bar[outcome], 0))) / 4) * 4)
   const labels = [0, Math.floor((bars.length - 1) / 3), Math.floor(2 * (bars.length - 1) / 3), bars.length - 1]
@@ -21,9 +21,10 @@ export default function Decisions({ bars }: { bars: Day[] }) {
       </div>)}
       <div className="relative grid h-full" style={{ gridTemplateColumns: 'repeat(' + bars.length + ', minmax(0,1fr))' }}>
         {bars.map((bar, index) => {
-          const title = istDate(bar.date) + ' · ' + dayOutcomes.map(outcome => outcomeLabels[outcome] + ' ' + bar[outcome]).join(' · ')
+          const title = istDate(bar.date) + ' · ' + dayOutcomes.map(outcome => outcomeLabels[outcome] + ' ' + bar[outcome]).join(' · ') + ' · ' + inr(((amounts.get(bar.date) ?? 0) / 100).toFixed(2))
           return <Link key={bar.date} tabIndex={dayOutcomes.some(key => bar[key]) ? 0 : -1} to={'/runs?date=' + bar.date} aria-label={title} title={title}
             className="group relative flex h-full min-w-0 items-end justify-center hover:bg-accent focus-visible:bg-accent">
+            {bar.date === today && <span aria-hidden="true" title="Today" className="pointer-events-none absolute inset-y-0 right-0 border-r border-muted-foreground" />}
             <span className="flex h-full w-[78%] max-w-3 flex-col-reverse">
               {dayOutcomes.map(outcome => <span key={outcome} className="block shrink-0" style={{ backgroundColor: outcomeColors[outcome], height: (bar[outcome] / scale * 100) + '%' }} />)}
             </span>

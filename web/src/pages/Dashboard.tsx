@@ -12,6 +12,7 @@ import { Panel } from '@/components/Panel'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { RunsTable } from '@/components/RunsTable'
 import { Button } from '@/components/ui/button'
+import { ReviewDialogs } from '@/components/run/ReviewDialogs'
 import { actionLabel, actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
 import { age, dayBefore, greatestRisk, periodDelta, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
 import { duration, inr, istDate, pct } from '@/lib/format'
@@ -131,15 +132,29 @@ export function Dashboard() {
   } : latestKpis
   const [review, setReview] = useState<number>()
 
+  const [dialog, setDialog] = useState<{ run: Schemas['RunDetail']; action: Schemas['ActionType'] } | null>(null)
+  function openReview(id: number, action?: Schemas['ActionType']) {
+    const run = runsById.get(id)
+    const offered = action ?? primaryReviewAction(run)
+    if (run && offered) setDialog({ run, action: offered })
+    else void navigate('/runs/' + id)
+  }
+  const dayAmounts = new Map<string, number>()
+  for (const run of rows) {
+    if (!run.outcome || !run.total) continue
+    const day = dayOf(run.created_at)
+    dayAmounts.set(day, (dayAmounts.get(day) ?? 0) + Number(run.total.replace('.', '')))
+  }
+
   const dashboardReviewKeys = Object.fromEntries(reviewActions(review == null ? undefined : runsById.get(review)).flatMap(action => {
     const key = actionShortcut(action)
-    return key ? [[key, () => void navigate('/queue?focus=' + review + '&action=' + action)]] : []
+    return key ? [[key, () => review != null && openReview(review, action)]] : []
   })) as Partial<Record<Shortcut, () => void>>
   useShortcuts({
     ...dashboardReviewKeys,
     week: () => setPeriod(0), month: () => setPeriod(1), quarter: () => setPeriod(2), all: () => setPeriod(3),
     queueLink: () => void navigate('/queue'),
-    open: () => { if (review != null) void navigate('/queue?focus=' + review + '&action=primary') },
+    open: () => { if (review != null) openReview(review) },
     escape: () => setReview(undefined),
   })
 
@@ -194,14 +209,14 @@ export function Dashboard() {
         const change = kpis && previous && days < 365 ? periodDelta(previous, kpis, metric, current) : null
         const difference = typeof change === 'number' ? change : null
         const tone = metric === 'touchless_rate' && difference ? difference > 0 ? 'good' : 'bad' : undefined
-        return <div className="col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
+        return <div className="relative col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
           period={period} delta={change === 'no-prior' ? 'no-prior' : difference == null ? undefined : {
             value: difference,
             text: metric === 'touchless_rate' ? (Math.abs(difference) * 100).toFixed(1) + ' pp' : (metric === 'value_processed' || metric === 'exposure_stopped') ? compactMoney(Math.abs(difference)) : metricText(metric, Math.abs(difference)), tone,
-          }} series={spark(metric)} /></div>
+          }} series={spark(metric)} /><Link aria-label={'View runs for ' + label} className="absolute inset-0 hover:outline-1 hover:-outline-offset-1 hover:outline-primary" to={'/runs?view=' + (metric === 'awaiting_review' ? 'review' : metric === 'exposure_stopped' ? 'exceptions' : metric === 'touchless_rate' ? 'approved' : 'all')} /></div>
       })}
       <Panel className="col-span-full lg:col-span-8" title="Decisions per day" action={<span className="text-meta font-normal text-muted-foreground">{istDate(first)} – {istDate(today)}</span>}>
-        {stats.isPending ? <LoadingState label="Loading daily decisions" /> : <Suspense fallback={<LoadingState label="Loading daily decisions" />}><Decisions bars={byDay} /></Suspense>}
+        {stats.isPending ? <LoadingState label="Loading daily decisions" /> : <Suspense fallback={<LoadingState label="Loading daily decisions" />}><Decisions bars={byDay} amounts={dayAmounts} today={today} /></Suspense>}
       </Panel>
       <Panel className="col-span-full lg:col-span-4" title="Exceptions by reason">
         {stats.isPending ? <LoadingState label="Loading exceptions" /> : <Exceptions rows={[...exceptionRows.values()]} amounts={byReason} />}
@@ -220,14 +235,14 @@ export function Dashboard() {
                 const action = primaryReviewAction(detail)
                 const actionKey = (action && actionShortcut(action)) || 'open'
                 return <tr key={run.id} className={cn('table-row hover:bg-muted', review === run.id && 'bg-accent hover:bg-accent')} onFocus={() => setReview(run.id)}>
-                  <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate">{run.route ? routes[run.route] : '—'}</span></div></td>
+                  <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate" title={run.route ? routes[run.route] : undefined}>{run.route ? routes[run.route] : '—'}</span></div></td>
                   <td className="truncate px-2" title={run.vendor_name ?? undefined}><Link className="text-link" to={'/runs/' + run.id}>{run.vendor_name ?? 'Unknown vendor'}</Link></td>
                   <td className="px-2 text-right text-meta">{inr(run.total)}</td>
                   <td className="px-2 text-right text-meta whitespace-nowrap text-muted-foreground">{age(run.age_hours)}</td>
-                  <td className="truncate px-2 text-meta text-muted-foreground" title={run.question}>{run.question}</td>
-                  <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" asChild><Link to={'/queue?focus=' + run.id + (action ? '&action=primary' : '')}>
+                  <td className="px-2 py-1 text-meta text-muted-foreground"><span className="line-clamp-2" title={run.question}>{run.question}</span></td>
+                  <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" onClick={() => openReview(run.id, action)}>
                     <span className="truncate">{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
-                  </Link></Button></td>
+                  </Button></td>
                 </tr>
               })}</tbody>
             </table>
@@ -252,6 +267,7 @@ export function Dashboard() {
           <div className="overflow-auto"><RunsTable runs={recent} now={businessNow(today)} /></div>}
       </Panel>
     </div>
+    {dialog && <ReviewDialogs {...dialog} onClose={() => setDialog(null)} onReviewed={run => { cache.setQueryData(queryKeys.run(run.id), run); void navigate('/runs/' + run.id) }} />}
   </div>
 }
 
@@ -261,16 +277,20 @@ function median(timings: number[]) {
 }
 
 function Exceptions({ rows, amounts }: { rows: Schemas['StatsReason'][]; amounts: Map<string, number> }) {
-  const sorted = [...rows].sort((a, b) => b.count - a.count).slice(0, 5)
+  const navigate = useNavigate()
+  const risk = (code: string) => amounts.get(code) ?? 0
+  const sorted = [...rows].sort((a, b) => risk(b.code) - risk(a.code) || b.count - a.count).slice(0, 5)
+  const maxRisk = Math.max(0, ...sorted.map(row => risk(row.code)))
+  const maxCount = Math.max(1, ...sorted.map(row => row.count))
   if (!sorted.length) return <EmptyState title="No exceptions in this period" />
   return <table aria-label="Exceptions by reason" className="w-full table-fixed">
     <colgroup><col /><col className="w-[42px]" /><col className="w-[92px]" /><col className="w-[50px]" /></colgroup>
-    <thead className="table-head"><tr><th className="px-2 font-medium">Reason</th><th className="px-1 text-right font-medium">Count</th><th className="px-2 text-right font-medium">At risk</th><th><span className="sr-only">Relative frequency</span></th></tr></thead>
-    <tbody>{sorted.map(row => <tr key={row.code} className="table-row hover:bg-muted">
+    <thead className="table-head"><tr><th className="px-2 font-medium">Reason</th><th className="px-1 text-right font-medium">Count</th><th className="px-2 text-right font-medium">At risk</th><th><span className="sr-only">Relative amount at risk, or frequency when no amount is known</span></th></tr></thead>
+    <tbody>{sorted.map(row => <tr key={row.code} onClick={() => void navigate('/runs?reason=' + row.code)} className="table-row cursor-pointer hover:bg-muted">
       <td className="truncate px-2 text-meta"><Link className="text-link" to={'/runs?reason=' + row.code} title={reasons[row.code]}>{reasons[row.code]}</Link></td>
       <td className="px-1 text-right text-meta">{row.count}</td>
-      <td className="px-2 text-right text-meta">{money(amounts.get(row.code) ?? 0)}</td>
-      <td className="pr-2"><div className="h-1 bg-muted"><div className="h-full bg-faint" style={{ width: (row.count / sorted[0].count * 100) + '%' }} /></div></td>
+      <td className="px-2 text-right text-meta">{risk(row.code) ? money(risk(row.code)) : '—'}</td>
+      <td className="pr-2"><div className="h-1 bg-muted"><div className="h-full bg-faint" style={{ width: ((risk(row.code) ? risk(row.code) / maxRisk : row.count / maxCount) * 100) + '%' }} /></div></td>
     </tr>)}</tbody>
   </table>
 }

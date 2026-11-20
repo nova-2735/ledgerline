@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
 import type { Schemas } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
@@ -12,8 +13,8 @@ import { WhyList } from './WhyList'
 import { BlockedApproval } from './ReviewActionBar'
 import { approvalBlock } from './reviewActions'
 
-export function DecisionPanel({ run, onAction, onHighlight }: {
-  run: Schemas['RunDetail']; onAction: (action: Schemas['ActionType']) => void; onHighlight: (field: FieldKey | null) => void
+export function DecisionPanel({ run, onAction, onHighlight, onEvidence }: {
+  onEvidence?: (field: FieldKey) => void; run: Schemas['RunDetail']; onAction: (action: Schemas['ActionType']) => void; onHighlight: (field: FieldKey | null) => void
 }) {
   const decision = run.decision
   if (!decision) return <EmptyState title={run.status === 'failed' ? 'This run ended without a decision' : 'Decision pending'}>
@@ -21,18 +22,20 @@ export function DecisionPanel({ run, onAction, onHighlight }: {
   </EmptyState>
   const blocker = approvalBlock(run)
   const critical = run.checks.find(check => check.severity === 'critical' && !check.resolved_by_review && (check.status === 'fail' || check.status === 'warn'))
+  const duplicate = run.checks.find(check => check.code?.startsWith('DUPLICATE_') && typeof check.evidence.run_id === 'number')
   const draft = decision.explanation.vendor_message
   return <div className="space-y-3">
     <section className="border border-l-[3px] bg-card px-3 py-2.5" style={{ borderLeftColor: outcomeColors[decision.outcome] }}>
       <OutcomeBadge outcome={decision.outcome} />
       <h3 className="mt-1 text-title">{decision.headline}</h3>
     </section>
+    {duplicate && <Link className="text-link" data-testid="original-run" to={'/runs/' + duplicate.evidence.run_id}>Open original run {String(duplicate.evidence.display_id ?? '')}</Link>}
+    {decision.handoff && <NextStepCard handoff={decision.handoff} onAction={onAction} blockingApproval={blocker} />}
     {critical && <Alert variant="destructive" className="rounded-none border-l-2 border-l-reject bg-card text-reject">
       <ShieldAlert aria-hidden="true" /><AlertTitle>{critical.code === 'BANK_DETAILS_CHANGED' ? 'Possible payment-redirection attempt' : 'Critical check needs attention'}</AlertTitle>
       <AlertDescription className="flex flex-wrap items-center gap-2 text-body text-muted-foreground!">{blocker ?? critical.title}
         {blocker && !decision.handoff?.actions.includes('approve') && <BlockedApproval reason={blocker} />}</AlertDescription>
     </Alert>}
-    {decision.handoff && <NextStepCard handoff={decision.handoff} onAction={onAction} blockingApproval={blocker} />}
     <details className="panel px-2.5 py-2">
       <summary className="cursor-pointer text-section">Decision explanation</summary>
       <p className="mt-1.5 text-body text-muted-foreground">{decision.explanation.summary}</p>
@@ -40,7 +43,7 @@ export function DecisionPanel({ run, onAction, onHighlight }: {
         {decision.notes.map(note => <li key={note}>{note}</li>)}
       </ul>}
     </details>
-    <WhyList checks={run.checks} onHighlight={onHighlight} />
+    <WhyList checks={run.checks} onHighlight={onHighlight} onEvidence={onEvidence} extraction={run.extraction} />
     {draft && <DraftCard draft={draft} markAsSent={decision.handoff?.actions.includes('send_to_vendor') ? () => onAction('send_to_vendor') : undefined} />}
     {decision.explanation.internal_note && <DraftCard draft={decision.explanation.internal_note} />}
     {decision.outcome === 'APPROVE' && decision.posting && <PostingTable posting={decision.posting} />}

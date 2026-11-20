@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils'
 import { DocumentToolbar, type Zoom } from './DocumentToolbar'
 import { HighlightLayer } from './HighlightLayer'
 
-export function DocumentViewer({ run, active, ocrAvailable, original }: {
-  run: Schemas['RunDetail']; active: FieldKey | null; ocrAvailable?: boolean; original: () => void
+export function DocumentViewer({ run, active, evidence, ocrAvailable, original }: {
+  evidence?: { field: FieldKey } | null; run: Schemas['RunDetail']; active: FieldKey | null; ocrAvailable?: boolean; original: () => void
 }) {
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState<Zoom>('Fit')
@@ -31,6 +31,11 @@ export function DocumentViewer({ run, active, ocrAvailable, original }: {
   const extraction = run.extraction
   const highlightedPage = active && extraction ? extraction[active].bbox[0]?.page : undefined
   useEffect(() => { if (highlightedPage) setPage(highlightedPage) }, [highlightedPage])
+  useEffect(() => {
+    if (evidence && !url.isPlaceholderData) {
+      document.querySelector('[data-highlight="' + evidence.field + '"]')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+    }
+  }, [evidence, url.data, url.isPlaceholderData])
   const highlights = extraction ? fieldKeys.map(id => ({
     id, label: fieldLabels[id], level: extraction[id].level, bbox: extraction[id].bbox,
   })) : []

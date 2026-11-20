@@ -6,7 +6,10 @@ import { toast } from 'sonner'
 import { api, type InboxItem, type Schemas } from '@/api/client'
 import { queryKeys, useAllRuns, useInbox, useRun } from '@/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
-import { OutcomeBadge, StatusSquare } from '@/components/OutcomeBadge'
+import { InvoicePreview } from '@/components/InvoicePreview'
+import { PageActions } from '@/components/layout/PageActions'
+import { inboxTags as shownTags } from '@/lib/inboxTags'
+import { StatusSquare } from '@/components/OutcomeBadge'
 import { RowKeys } from '@/components/RowKeys'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { WorkFolders } from '@/components/WorkFolders'
@@ -24,9 +27,6 @@ type Item = { key: string; doc?: Mail; run?: Run }
 const folderOptions = [
   ['all', 'All'], ['new', 'Unprocessed'], ['processed', 'Processed'], ['edge', 'Edge cases'], ['uploaded', 'Uploaded'], ['stress', 'Stress tests'],
 ] as const
-
-const outcomeTags = new Set(['approve', 'approved', 'hold', 'return', 'return-to-vendor', 'reject', 'expected-approve', 'expected-hold', 'expected-return', 'expected-reject'])
-const shownTags = (mail?: Mail) => mail?.tags.filter(tag => !outcomeTags.has(tag.toLowerCase())) ?? []
 
 function hasFolder(item: Item, folder: string) {
   if (folder === 'stress') return item.doc?.group === 'stress'
@@ -76,12 +76,24 @@ export function Inbox() {
     onSuccess: ({ run_id }) => { invalidateActivity(); void navigate('/runs/' + run_id) },
   })
 
+  const batch = useMutation({
+    mutationFn: async () => {
+      const pending = (await api.demoInbox()).filter(doc => !doc.processed_run_ids.length)
+      for (const doc of pending) await api.createDemoRun(doc.doc_id, forceFresh)
+      return pending.length
+    },
+    onSuccess: count => toast.success(count + ' invoices queued'),
+    onSettled: invalidateActivity,
+  })
+  const busy = uploading || process.isPending || batch.isPending
+  const startBatch = () => { if (!busy && messages.data?.some(doc => !doc.processed_run_ids.length)) batch.mutate() }
+
   function processEntry(fresh: boolean) {
-    if (entry?.doc && !process.isPending && !uploading) process.mutate({ id: entry.doc.doc_id, fresh: fresh || forceFresh })
+    if (entry?.doc && !busy) process.mutate({ id: entry.doc.doc_id, fresh: fresh || forceFresh })
   }
 
   async function upload(files: File[]) {
-    if (uploading || process.isPending || !files.length) return
+    if (busy || !files.length) return
     setUploading(true)
     setUploadErrors([])
     const result = await Promise.allSettled(files.map(async file => {
@@ -119,6 +131,7 @@ export function Inbox() {
   useShortcuts({
     search: () => searchInput.current?.focus(), next: () => step('next'), previous: () => step('previous'),
     open: () => { if (currentId) void navigate('/runs/' + currentId) },
+    upload: () => { if (!busy) uploadInput.current?.click() }, processAll: startBatch,
     previewMessage: () => preview.current?.focus(),
     process: () => processEntry(false), fresh: () => processEntry(true),
     escape: () => setSelected(null),
@@ -127,16 +140,21 @@ export function Inbox() {
   const error = folder === 'uploaded' ? runs.error : messages.error
 
   return <div className="page-padding h-full min-h-0">
-    <div className="grid min-h-full grid-cols-1 gap-px border bg-border lg:h-full lg:min-h-0 lg:grid-cols-[200px_minmax(0,1.25fr)_minmax(265px,0.95fr)]">
+    <PageActions>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => uploadInput.current?.click()}>Upload PDF<ShortcutHint id="upload" /></Button>
+      <Button size="sm" disabled={busy || !entry?.doc} onClick={() => processEntry(false)}>Process selected<ShortcutHint id="process" /></Button>
+      <Button size="sm" variant="outline" disabled={busy || !messages.data?.some(doc => !doc.processed_run_ids.length)} onClick={startBatch}>{batch.isPending ? 'Queuing invoices…' : 'Process all unprocessed'}<ShortcutHint id="processAll" /></Button>
+    </PageActions>
+    <div className="grid min-h-full grid-cols-1 gap-px border bg-border lg:h-full lg:min-h-0 lg:grid-cols-[minmax(140px,16%)_minmax(0,1.6fr)_minmax(285px,1fr)]">
       <WorkFolders title="Folders" folders={folders.map(([id, label]) => ({ id, label, count: all.filter(item => hasFolder(item, id)).length }))}
-        active={folder} select={id => { setSelected(undefined); setParams(id === 'all' ? {} : { folder: id }) }} />
+        active={folder} select={id => { setSelected(undefined); setParams(id === 'all' ? {} : { folder: id }) }}><p className="border-t px-3 py-2 text-meta text-muted-foreground">■ processed · □ new</p></WorkFolders>
       <section aria-label="Messages" className={cn('flex min-h-0 min-w-0 flex-col bg-card', dragging && 'relative z-10 outline-2 -outline-offset-2 outline-primary')}
         onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDragging(true) } }}
         onDragLeave={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false) }} onDrop={drop}>
         <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 border-b bg-muted px-3">
           <Upload aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <span className="text-meta text-muted-foreground">Drop PDFs or</span>
-          <button type="button" className="text-link text-meta font-medium" disabled={uploading || process.isPending} onClick={() => uploadInput.current?.click()}>{uploading ? 'Uploading…' : 'browse'}</button>
+          <button type="button" className="text-link text-meta font-medium" disabled={busy} onClick={() => uploadInput.current?.click()}>{uploading ? 'Uploading…' : 'browse'}</button>
           <span className="text-meta text-muted-foreground" title="Maximum 10 pages per invoice">· ≤10 MB</span>
           <input ref={uploadInput} type="file" accept=".pdf,application/pdf" multiple hidden onChange={event => {
             void upload(Array.from(event.target.files ?? [])); event.target.value = ''
@@ -152,28 +170,26 @@ export function Inbox() {
           <RowKeys onStep={step} disabled={!filtered.length} />
           <Button type="button" variant="ghost" size="sm" disabled={!entry} aria-label="Space · Focus message preview" onClick={() => preview.current?.focus()}><ShortcutHint id="previewMessage" /></Button>
         </div>
-        {!!uploadErrors.length && <ul className="space-y-1 border-b p-3 text-reject" role="alert">
-          {uploadErrors.map((error, index) => <li key={index}>{error}</li>)}
-        </ul>}
-        {process.isError && <ErrorState title="Could not start processing" error={process.error} />}
+        {!!uploadErrors.length && <ErrorState title="Could not upload the invoice" error={new Error(uploadErrors.join(' '))} retry={() => uploadInput.current?.click()} />}
+        {process.isError && <ErrorState title="Could not start processing" error={process.error} retry={() => process.variables && process.mutate(process.variables)} />}
+        {batch.isError && <ErrorState title="Could not queue all invoices" error={batch.error} retry={startBatch} />}
         <div className="min-h-0 flex-1 overflow-auto">
           {loading ? <LoadingState label="Loading the inbox" /> : error ?
             <ErrorState title="Could not load the inbox" error={error} retry={() => void (folder === 'uploaded' ? runs.refetch() : messages.refetch())} /> :
             !filtered.length ? <EmptyState title={folder === 'uploaded' ? 'No uploaded invoices' : 'No messages in this folder'} /> :
               <ul className="divide-y">
                 {filtered.map(item => {
-                  const date = item.doc?.received_at ?? item.run?.created_at
                   const outcome = item.run && effectiveOutcome(item.run)
                   const active = item === entry
-                  return <li key={item.key}><button type="button" id={'mail-' + item.key} onClick={() => setSelected(item.key)} aria-pressed={active}
-                    className={cn('grid h-10 w-full min-w-0 grid-cols-[8px_minmax(80px,0.85fr)_minmax(120px,1.4fr)_auto_auto] items-center gap-2 px-3 text-left hover:bg-muted', active && 'bg-accent hover:bg-accent')}>
-                    <StatusSquare outcome={outcome} className={!outcome && item.doc?.processed_run_ids.length ? 'bg-input' : undefined} />
+                  return <li key={item.key}><button type="button" id={'mail-' + item.key} data-testid={'mail-' + item.key} onClick={() => setSelected(item.key)} aria-pressed={active}
+                    className={cn('grid h-10 w-full min-w-0 grid-cols-[8px_minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.7fr)_minmax(72px,auto)] items-center gap-2 px-3 text-left hover:bg-muted', active && 'bg-accent hover:bg-accent')}>
+                    <StatusSquare outcome={outcome} className={!outcome && (item.run || item.doc?.processed_run_ids.length) ? 'bg-muted-foreground' : 'border-muted-foreground'} />
                     <span className="truncate font-medium" title={item.doc?.sender_name ?? item.run?.vendor_name ?? undefined}>{item.doc?.sender_name ?? item.run?.vendor_name ?? 'Uploaded PDF'}</span>
                     <span className="truncate text-meta" title={item.doc?.subject ?? item.run?.filename}>{item.doc?.subject ?? item.run?.filename}</span>
-                    <span className="hidden max-w-24 items-center gap-1 overflow-hidden xl:flex">
-                      {shownTags(item.doc).filter(tag => tag !== 'digital').slice(0, 1).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
+                    <span className="flex min-w-0 items-center gap-1 overflow-hidden">
+                      {shownTags(item.doc).filter(tag => tag !== 'Digital').slice(0, 2).map(tag => <span key={tag} className="truncate rounded-sm border bg-card px-1 text-meta text-muted-foreground" title={tag}>{tag}</span>)}
                     </span>
-                    {date && <time dateTime={date} className="whitespace-nowrap text-meta text-muted-foreground" title={istDate(date) + ' · ' + istTime(date)}>{istTime(date).replace(' IST', '')}</time>}
+                    <span className="whitespace-nowrap text-right text-meta tabular-nums" title={item.run?.total ? inr(item.run.total) : 'Amount available after processing'}>{inr(item.run?.total)}</span>
                   </button></li>
                 })}
               </ul>}
@@ -198,18 +214,15 @@ export function Inbox() {
             </dl>
             {shownTags(entry.doc).length > 0 && <div className="flex flex-wrap gap-1.5">{shownTags(entry.doc).map(tag => <span key={tag} className="rounded-sm border bg-muted px-1.5 py-0.5 text-meta text-muted-foreground">{tag}</span>)}</div>}
             {entry.doc && <section><h4 className="text-section">What’s tricky here</h4><p className="mt-1 text-body text-muted-foreground">{entry.doc.title}</p></section>}
-            {currentId && <div className="flex items-center justify-between gap-2 border-t py-2">
-              <div className="min-w-0"><div className="text-meta text-muted-foreground">{entry.doc ? 'Last run' : 'Invoice run'}</div>
-                <OutcomeBadge outcome={detail.data ? effectiveOutcome(detail.data) : entry.run && effectiveOutcome(entry.run)} />
-                {entry.run?.total && <span className="ml-2 text-meta">{inr(entry.run.total)}</span>}
-              </div>
-              <Button asChild size="sm" variant="outline"><Link to={'/runs/' + currentId}>{entry.doc ? 'Open last run' : 'Open run'}<ShortcutHint id="open" /></Link></Button>
+            {currentId && <div className="space-y-2">
+              {detail.isPending ? <LoadingState label="Loading last run" /> : detail.isError ? <ErrorState title="Could not load last run" retry={() => void detail.refetch()} /> : <InvoicePreview run={detail.data} />}
+              <Button asChild size="sm" variant="outline"><Link to={'/runs/' + currentId}>Open last run<ShortcutHint id="open" /></Link></Button>
             </div>}
             {entry.doc && <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-              <Button type="button" disabled={process.isPending || uploading} onClick={() => processEntry(false)}>
+              <Button type="button" disabled={busy} onClick={() => processEntry(false)}>
                 {process.isPending ? 'Starting…' : currentId ? 'Process again' : 'Process'}<ShortcutHint id="process" />
               </Button>
-              <Button type="button" variant="outline" disabled={process.isPending || uploading} onClick={() => processEntry(true)}>Process with fresh read<ShortcutHint id="fresh" /></Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => processEntry(true)}>Process with fresh read<ShortcutHint id="fresh" /></Button>
             </div>}
           </div>}
       </section>
