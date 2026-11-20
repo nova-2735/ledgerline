@@ -1,0 +1,29 @@
+{
+  "rule_id": "V04_bank_details",
+  "stage": "identify_vendor",
+  "status": "fail",
+  "code": "BANK_DETAILS_CHANGED",
+  "severity": "critical",
+  "title": "Bank account matches vendor record",
+  "message": "The invoice asks for payment to ****9012 at Yes Bank, but the vendor master has ****5678 at HDFC Bank.",
+  "evidence": {
+    "expected": {
+      "bank_account_masked": "****5678",
+      "bank_ifsc": "HDFC0000123",
+      "bank_name": "HDFC Bank"
+    },
+    "actual": {
+      "bank_account_masked": "****9012",
+      "bank_ifsc": "YESB0000456",
+      "bank_name": "Yes Bank"
+    },
+    "phone_on_file": "+91 20 2712 4455",
+    "phone_invoice": "+91 98220 31177",
+    "notice": "Please note our new bank details",
+    "fields": ["bank_account_number", "bank_ifsc", "bank_name"]
+  },
+  "route": "treasury",
+  "outcome_hint": "HOLD",
+  "amount_at_risk": "116348.00",
+  "resolved_by_review": false
+}

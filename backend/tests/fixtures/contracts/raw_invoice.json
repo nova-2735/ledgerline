@@ -1,0 +1,58 @@
+{
+  "document_type": "tax_invoice",
+  "document_title": "TAX INVOICE",
+  "invoice_number": "SPI/26-27/0214",
+  "invoice_date": "12/11/2026",
+  "due_date": null,
+  "supplier_name": "Sharma Packaging Industries",
+  "supplier_gstin": "27AAKFS2231P1ZS",
+  "supplier_address": "Gat No. 112, Chakan Industrial Area, Pune, Maharashtra 410501",
+  "supplier_phone": "+91 20 2712 4455",
+  "supplier_email": "accounts@sharmapackaging.example",
+  "buyer_name": "Kestrel Foods Pvt. Ltd.",
+  "buyer_gstin": "29AAJCK4417M1Z1",
+  "place_of_supply": "Karnataka (29)",
+  "po_reference": "PO No.: KF-PO-0142",
+  "currency": "₹",
+  "line_items": [
+    {
+      "description": "PKG-CB-0450 Corrugated shipper box 450x300x250 mm, 5-ply",
+      "item_code": "PKG-CB-0450",
+      "hsn_sac": "4819",
+      "quantity": "2000",
+      "uom": "Nos",
+      "unit_price": "38.50",
+      "amount": "77,000.00",
+      "tax_rate": null
+    },
+    {
+      "description": "PKG-TP-0048 BOPP packing tape 48 mm x 65 m, brown",
+      "item_code": "PKG-TP-0048",
+      "hsn_sac": "3919",
+      "quantity": "300",
+      "uom": "Roll",
+      "unit_price": "72.00",
+      "amount": "21,600.00",
+      "tax_rate": null
+    }
+  ],
+  "subtotal": "98,600.00",
+  "tax_lines": [
+    {
+      "tax_type": "IGST",
+      "rate": "18%",
+      "amount": "17,748.00"
+    }
+  ],
+  "other_charges": [],
+  "round_off": null,
+  "total": "₹1,16,348.00",
+  "amount_in_words": "Rupees One Lakh Sixteen Thousand Three Hundred Forty Eight Only",
+  "prices_include_tax": false,
+  "bank_account_name": "Sharma Packaging Industries",
+  "bank_account_number": "50200012345678",
+  "bank_ifsc": "HDFC0000123",
+  "bank_name": "HDFC Bank",
+  "annotations": [],
+  "legibility": "clear"
+}

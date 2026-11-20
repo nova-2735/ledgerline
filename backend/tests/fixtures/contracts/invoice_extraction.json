@@ -1,0 +1,176 @@
+{
+  "doc_type": "tax_invoice",
+  "doc_kind": "digital",
+  "legibility": "clear",
+  "invoice_number": {
+    "value": "SPI/26-27/0214", "raw": "SPI/26-27/0214", "confidence": 0.98, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.62, "y0": 0.14, "x1": 0.78, "y1": 0.155}], "notes": []
+  },
+  "invoice_number_canonical": "SPI26270214",
+  "invoice_date": {
+    "value": "2026-11-12", "raw": "12/11/2026", "confidence": 0.97, "level": "high",
+    "grounded": "exact", "validators": ["date_dmy"],
+    "bbox": [{"page": 0, "x0": 0.62, "y0": 0.16, "x1": 0.72, "y1": 0.175}], "notes": []
+  },
+  "due_date": {
+    "value": null, "raw": null, "confidence": 0.0, "level": "low",
+    "grounded": "unavailable", "validators": [], "bbox": [], "notes": ["not printed"]
+  },
+  "supplier_name": {
+    "value": "Sharma Packaging Industries", "raw": "Sharma Packaging Industries",
+    "confidence": 0.99, "level": "high", "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.08, "y0": 0.05, "x1": 0.45, "y1": 0.075}], "notes": []
+  },
+  "supplier_gstin": {
+    "value": "27AAKFS2231P1ZS", "raw": "27AAKFS2231P1ZS", "confidence": 0.99, "level": "high",
+    "grounded": "exact", "validators": ["gstin_checksum"],
+    "bbox": [{"page": 0, "x0": 0.08, "y0": 0.1, "x1": 0.3, "y1": 0.115}], "notes": []
+  },
+  "supplier_phone": {
+    "value": "+91 20 2712 4455", "raw": "+91 20 2712 4455", "confidence": 0.95, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.08, "y0": 0.115, "x1": 0.28, "y1": 0.13}], "notes": []
+  },
+  "buyer_name": {
+    "value": "Kestrel Foods Pvt. Ltd.", "raw": "Kestrel Foods Pvt. Ltd.", "confidence": 0.98,
+    "level": "high", "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.08, "y0": 0.2, "x1": 0.35, "y1": 0.215}], "notes": []
+  },
+  "buyer_gstin": {
+    "value": "29AAJCK4417M1Z1", "raw": "29AAJCK4417M1Z1", "confidence": 0.98, "level": "high",
+    "grounded": "exact", "validators": ["gstin_checksum"],
+    "bbox": [{"page": 0, "x0": 0.08, "y0": 0.23, "x1": 0.3, "y1": 0.245}], "notes": []
+  },
+  "place_of_supply": {
+    "value": "29", "raw": "Karnataka (29)", "confidence": 0.96, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.62, "y0": 0.2, "x1": 0.8, "y1": 0.215}], "notes": []
+  },
+  "po_reference": {
+    "value": "KF-PO-0142", "raw": "PO No.: KF-PO-0142", "confidence": 0.97, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.62, "y0": 0.18, "x1": 0.8, "y1": 0.195}], "notes": []
+  },
+  "po_reference_canonical": "KF-PO-0142",
+  "currency": "INR",
+  "line_items": [
+    {
+      "index": 0,
+      "description": "PKG-CB-0450 Corrugated shipper box 450x300x250 mm, 5-ply",
+      "item_code": "PKG-CB-0450",
+      "hsn_sac": "4819",
+      "quantity": "2000",
+      "uom": "Nos",
+      "unit_price": "38.50",
+      "amount": "77000.00",
+      "tax_rate_pct": null,
+      "taxable_amount": "77000.00",
+      "bbox": [{"page": 0, "x0": 0.06, "y0": 0.32, "x1": 0.94, "y1": 0.345}]
+    },
+    {
+      "index": 1,
+      "description": "PKG-TP-0048 BOPP packing tape 48 mm x 65 m, brown",
+      "item_code": "PKG-TP-0048",
+      "hsn_sac": "3919",
+      "quantity": "300",
+      "uom": "Roll",
+      "unit_price": "72.00",
+      "amount": "21600.00",
+      "tax_rate_pct": null,
+      "taxable_amount": "21600.00",
+      "bbox": [{"page": 0, "x0": 0.06, "y0": 0.345, "x1": 0.94, "y1": 0.37}]
+    }
+  ],
+  "subtotal": {
+    "value": "98600.00", "raw": "98,600.00", "confidence": 0.98, "level": "high",
+    "grounded": "exact", "validators": ["arithmetic"],
+    "bbox": [{"page": 0, "x0": 0.75, "y0": 0.42, "x1": 0.94, "y1": 0.435}], "notes": []
+  },
+  "tax": {
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "17748.00",
+    "other": "0.00",
+    "total_tax": "17748.00",
+    "rates_pct": ["18"],
+    "kind": "inter"
+  },
+  "other_charges_total": "0.00",
+  "round_off": {
+    "value": null, "raw": null, "confidence": 0.0, "level": "low",
+    "grounded": "unavailable", "validators": [], "bbox": [], "notes": []
+  },
+  "total": {
+    "value": "116348.00", "raw": "₹1,16,348.00", "confidence": 0.99, "level": "high",
+    "grounded": "exact", "validators": ["arithmetic", "words_match"],
+    "bbox": [{"page": 0, "x0": 0.75, "y0": 0.47, "x1": 0.94, "y1": 0.49}], "notes": []
+  },
+  "amount_in_words": {
+    "value": "116348.00", "raw": "Rupees One Lakh Sixteen Thousand Three Hundred Forty Eight Only",
+    "confidence": 0.95, "level": "high", "grounded": "exact", "validators": ["words_match"],
+    "bbox": [{"page": 0, "x0": 0.06, "y0": 0.5, "x1": 0.7, "y1": 0.515}], "notes": []
+  },
+  "prices_include_tax": false,
+  "bank_account_number": {
+    "value": "50200012345678", "raw": "50200012345678", "confidence": 0.98, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.06, "y0": 0.56, "x1": 0.3, "y1": 0.575}], "notes": []
+  },
+  "bank_ifsc": {
+    "value": "HDFC0000123", "raw": "HDFC0000123", "confidence": 0.98, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.06, "y0": 0.575, "x1": 0.25, "y1": 0.59}], "notes": []
+  },
+  "bank_name": {
+    "value": "HDFC Bank", "raw": "HDFC Bank", "confidence": 0.97, "level": "high",
+    "grounded": "exact", "validators": [],
+    "bbox": [{"page": 0, "x0": 0.06, "y0": 0.545, "x1": 0.2, "y1": 0.56}], "notes": []
+  },
+  "annotations": [],
+  "meta": {
+    "provider": "fake",
+    "model": "fake-extractor",
+    "prompt_id": "extract_invoice",
+    "prompt_version": "v1",
+    "latency_ms": 12,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cached": false,
+    "cached_at": null,
+    "raw": {
+      "document_type": "tax_invoice",
+      "document_title": "TAX INVOICE",
+      "invoice_number": "SPI/26-27/0214",
+      "invoice_date": "12/11/2026",
+      "due_date": null,
+      "supplier_name": "Sharma Packaging Industries",
+      "supplier_gstin": "27AAKFS2231P1ZS",
+      "supplier_address": "Gat No. 112, Chakan Industrial Area, Pune, Maharashtra 410501",
+      "supplier_phone": "+91 20 2712 4455",
+      "supplier_email": "accounts@sharmapackaging.example",
+      "buyer_name": "Kestrel Foods Pvt. Ltd.",
+      "buyer_gstin": "29AAJCK4417M1Z1",
+      "place_of_supply": "Karnataka (29)",
+      "po_reference": "PO No.: KF-PO-0142",
+      "currency": "₹",
+      "line_items": [
+        {"description": "PKG-CB-0450 Corrugated shipper box 450x300x250 mm, 5-ply", "item_code": "PKG-CB-0450", "hsn_sac": "4819", "quantity": "2000", "uom": "Nos", "unit_price": "38.50", "amount": "77,000.00", "tax_rate": null},
+        {"description": "PKG-TP-0048 BOPP packing tape 48 mm x 65 m, brown", "item_code": "PKG-TP-0048", "hsn_sac": "3919", "quantity": "300", "uom": "Roll", "unit_price": "72.00", "amount": "21,600.00", "tax_rate": null}
+      ],
+      "subtotal": "98,600.00",
+      "tax_lines": [{"tax_type": "IGST", "rate": "18%", "amount": "17,748.00"}],
+      "other_charges": [],
+      "round_off": null,
+      "total": "₹1,16,348.00",
+      "amount_in_words": "Rupees One Lakh Sixteen Thousand Three Hundred Forty Eight Only",
+      "prices_include_tax": false,
+      "bank_account_name": "Sharma Packaging Industries",
+      "bank_account_number": "50200012345678",
+      "bank_ifsc": "HDFC0000123",
+      "bank_name": "HDFC Bank",
+      "annotations": [],
+      "legibility": "clear"
+    }
+  }
+}

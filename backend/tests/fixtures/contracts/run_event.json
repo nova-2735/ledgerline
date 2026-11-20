@@ -1,0 +1,29 @@
+{
+  "seq": 7,
+  "run_id": 42,
+  "ts": "2026-11-20T05:12:29.412000Z",
+  "type": "stage.completed",
+  "stage": "identify_vendor",
+  "status": "failed",
+  "message": "Vendor found: Sharma Packaging Industries (V001); bank details differ from the master",
+  "data": {
+    "summary": "Vendor found: Sharma Packaging Industries (V001)",
+    "detail": {"vendor_id": "V001", "matched_by": "gstin"},
+    "checks": [
+      {
+        "rule_id": "V04_bank_details",
+        "stage": "identify_vendor",
+        "status": "fail",
+        "code": "BANK_DETAILS_CHANGED",
+        "severity": "critical",
+        "title": "Bank account matches vendor record",
+        "message": "Invoice bank account ****9012 differs from the master ****5678.",
+        "evidence": {},
+        "route": "treasury",
+        "outcome_hint": "HOLD",
+        "amount_at_risk": "116348.00",
+        "resolved_by_review": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "outcome": "HOLD",
+  "route": "treasury",
+  "headline": "Hold — Bank account matches vendor record",
+  "primary_reason": "BANK_DETAILS_CHANGED",
+  "reasons": ["BANK_DETAILS_CHANGED"],
+  "notes": [],
+  "handoff": {
+    "owner": "treasury",
+    "question": "Did Sharma Packaging Industries really change their bank account to ****9012 (Yes Bank)?",
+    "suggested_action": "Call Sharma Packaging Industries on the number on file (+91 20 2712 4455) — not the number on this invoice (+91 98220 31177) — and confirm. Update the vendor master through change control before any payment.",
+    "actions": ["verify_bank", "reject"],
+    "amount_at_risk": "116348.00",
+    "blocking_codes": ["BANK_DETAILS_CHANGED"]
+  },
+  "explanation": {
+    "summary": "Hold: the invoice asks for payment to a different bank account (****9012 at Yes Bank) than the one on file. 18 other checks passed.",
+    "bullets": ["Bank account on the invoice (****9012) differs from the vendor master (****5678)."],
+    "generated_by": "template",
+    "model": null,
+    "vendor_message": null,
+    "internal_note": {
+      "to": "treasury",
+      "subject": "Bank change to verify — Sharma Packaging Industries, invoice SPI/26-27/0221",
+      "body": "Invoice SPI/26-27/0221 for ₹1,16,348.00 asks for payment to ****9012 at Yes Bank. Please confirm with the vendor on +91 20 2712 4455 before any payment.",
+      "channel": "internal"
+    }
+  },
+  "posting": null,
+  "checks_summary": {"pass": 18, "warn": 0, "fail": 1, "skip": 0},
+  "policy_version": "2026-11-20.1+3f9a1c2e",
+  "decided_at": "2026-11-20T05:12:30Z",
+  "final": false
+}

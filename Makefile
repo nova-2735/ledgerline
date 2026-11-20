@@ -58,10 +58,10 @@ reset:
 	@echo "make reset: available after B08"
 
 openapi:
-	@echo "make openapi: available after B01"
+	$(UV_RUN) python -m app.cli export-openapi
 
 types:
-	@echo "make types: available after B01"
+	cd $(WEB) && npm run gen:types
 
 models:
 	@echo "make models: available after B04"
