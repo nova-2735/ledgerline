@@ -2,6 +2,8 @@ import type { components, operations } from './types.gen'
 
 export type Schemas = components['schemas']
 
+export type InboxItem = Schemas['DemoInboxItem'] & { group?: 'stress' | 'scenario' }
+
 type Query<Op extends keyof operations> = operations[Op]['parameters'] extends { query?: infer Q }
   ? NonNullable<Q>
   : never
@@ -128,7 +130,7 @@ export const api = {
     request<Schemas['RunDetail']>('POST', `/runs/${runId}/review`, { json: body }),
 
   demoInbox: (signal?: AbortSignal) =>
-    request<Schemas['DemoInboxItem'][]>('GET', '/demo/inbox', { signal }),
+    request<InboxItem[]>('GET', '/demo/inbox', { signal }),
   createDemoRun: (docId: string, forceFresh = false) =>
     request<Schemas['RunCreated']>('POST', `/demo/runs/${enc(docId)}`, {
       json: { force_fresh: forceFresh } satisfies Schemas['DemoRunRequest'],

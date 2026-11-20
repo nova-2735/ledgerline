@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Search, Upload } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, type Schemas } from '@/api/client'
+import { api, type InboxItem, type Schemas } from '@/api/client'
 import { queryKeys, useAllRuns, useInbox, useRun } from '@/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
 import { OutcomeBadge, StatusSquare } from '@/components/OutcomeBadge'
@@ -18,17 +18,18 @@ import { effectiveOutcome, type Run } from '@/lib/runList'
 import { rowIndex, useShortcuts } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
-type Mail = Schemas['DemoInboxItem']
+type Mail = InboxItem
 type Item = { key: string; doc?: Mail; run?: Run }
 
-const folders = [
-  ['all', 'All'], ['new', 'Unprocessed'], ['processed', 'Processed'], ['edge', 'Edge cases'], ['uploaded', 'Uploaded'],
+const folderOptions = [
+  ['all', 'All'], ['new', 'Unprocessed'], ['processed', 'Processed'], ['edge', 'Edge cases'], ['uploaded', 'Uploaded'], ['stress', 'Stress tests'],
 ] as const
 
 const outcomeTags = new Set(['approve', 'approved', 'hold', 'return', 'return-to-vendor', 'reject', 'expected-approve', 'expected-hold', 'expected-return', 'expected-reject'])
 const shownTags = (mail?: Mail) => mail?.tags.filter(tag => !outcomeTags.has(tag.toLowerCase())) ?? []
 
 function hasFolder(item: Item, folder: string) {
+  if (folder === 'stress') return item.doc?.group === 'stress'
   if (folder === 'uploaded') return !item.doc
   if (!item.doc) return folder === 'all'
   if (folder === 'edge') return item.doc.is_edge_case
@@ -53,6 +54,7 @@ export function Inbox() {
   const uploadInput = useRef<HTMLInputElement>(null)
   const preview = useRef<HTMLElement>(null)
 
+  const folders = folderOptions.filter(([id]) => id !== 'stress' || messages.data?.some(doc => doc.group === 'stress'))
   const folder = folders.find(([id]) => id === params.get('folder'))?.[0] ?? 'all'
   const byId = new Map(runs.data?.map(run => [run.id, run]))
   const mail: Item[] = (messages.data ?? []).map(doc => ({ key: doc.doc_id, doc, run: byId.get(doc.processed_run_ids.at(-1) ?? 0) }))
