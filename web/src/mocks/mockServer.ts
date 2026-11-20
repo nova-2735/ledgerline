@@ -29,21 +29,33 @@ function emptyDetail(run: Summary): Run {
 function makeDecision(run: Summary): Schemas['Decision'] | null {
   if (!run.outcome) return null
   const reason = run.primary_reason && reasons[run.primary_reason]
-  const summary = reason || 'The invoice matches the order and passed the required checks.'
+  const priceReview = run.scenario_id === 'S12'
+  const summary = priceReview ? 'The supplier billed ₹662.00 per roll against ₹610.00 on the purchase order.' :
+    reason || 'The invoice matches the order and passed the required checks.'
+  const codes: Schemas['ReasonCode'][] = run.primary_reason ? [run.primary_reason] : []
+  if (priceReview) codes.push('AMOUNT_VARIANCE_OVER_TOL')
+  const vendorReturn = run.outcome === 'RETURN' && run.status === 'awaiting_review'
   return {
     version: 1, outcome: run.outcome, route: run.route ?? 'none', headline: outcomes[run.outcome],
     final: run.status === 'completed', primary_reason: run.primary_reason,
-    reasons: run.primary_reason ? [run.primary_reason] : [], notes: [], posting: null,
+    reasons: codes, notes: [], posting: null,
     explanation: {
-      summary, bullets: [], generated_by: 'template', model: null, vendor_message: null, internal_note: null,
+      summary, bullets: [], generated_by: 'template', model: null, internal_note: null,
+      vendor_message: vendorReturn && run.sender_email ? {
+        channel: 'email', to: fixtures.vendors.find(vendor => vendor.vendor_id === run.vendor_id)?.email ?? run.sender_email,
+        subject: `Invoice ${run.invoice_number ?? run.display_id} needs attention`,
+        body: `Please send a corrected tax invoice. ${summary}.`,
+      } : null,
     },
     checks_summary: {}, policy_version: fixtures.policy.version, decided_at: run.created_at,
     handoff: run.status === 'awaiting_review' ? {
       owner: run.route ?? 'ap_clerk',
-      question: run.scenario_id === 'H23' ? 'Can Receiving confirm delivery of the 8 toner cartridges?' : summary,
+      question: run.scenario_id === 'H23' ? 'Can Receiving confirm delivery of the 8 toner cartridges?' :
+        priceReview ? 'Did the buyer agree to pay ₹662.00 per roll?' : summary,
       suggested_action: 'Review the invoice and supporting records.',
-      blocking_codes: run.primary_reason ? [run.primary_reason] : [],
-      amount_at_risk: run.total, actions: ['approve', 'reject', 'send_to_vendor'],
+      blocking_codes: codes,
+      amount_at_risk: priceReview ? '3681.60' : run.total,
+      actions: vendorReturn ? ['send_to_vendor'] : ['approve', 'reject', 'send_to_vendor'],
     } : null,
   }
 }
@@ -59,9 +71,23 @@ function stageAt(name: Stage['name'], run: Summary, index: number): Stage {
 
 function genericDetail(run: Summary): Run {
   const decision = makeDecision(run)
+  const billed = run.scenario_id === 'H01' ? { quantity: '40', amount: '58000.00', before: '0' }
+    : run.scenario_id === 'H02' ? { quantity: '20', amount: '29000.00', before: '40' } : null
   return {
     ...emptyDetail(run), stages: stageNames.map((name, i) => stageAt(name, run, i)),
     decision, decision_history: decision ? [decision] : [],
+    matching: billed ? {
+      po_number: run.po_number, match_type: 'three_way', po_candidates: [],
+      header_expected: run.total, header_invoiced: run.total, header_variance: '0.00',
+      rows: [{
+        kind: 'one_to_one', matched_by: 'code', invoice_line_indexes: [1], po_line_nos: [1],
+        description_invoice: 'Nitrile gloves', description_po: 'Nitrile gloves', similarity: 1,
+        qty_invoiced: billed.quantity, qty_ordered: '100', qty_received: billed.quantity,
+        qty_available: billed.quantity, qty_billed_before: billed.before,
+        unit_price_invoice: '1450.00', unit_price_po: '1450.00', price_variance_pct: '0.00',
+        amount_expected: billed.amount, amount_invoice: billed.amount, status: 'pass', codes: [],
+      }],
+    } : null,
   }
 }
 
@@ -88,7 +114,8 @@ function makeEvents(run: Run): RunEvent[] {
 function createRun(scenarioId?: string, fileName?: string, forceFresh = false) {
   if (scenarioId && !Object.hasOwn(scenarios, scenarioId)) notFound()
   const scenario = scenarioId as Scenario | undefined
-  const original = scenarios[scenario ?? 'S01']
+  const summary = scenarios[scenario ?? 'S01']
+  const original: Summary = summary.outcome === 'RETURN' ? { ...summary, status: 'awaiting_review', final_outcome: null } : summary
   const template = fixtures.details[scenario as keyof typeof fixtures.details] ?? genericDetail(original)
   const started = Date.now()
   const id = nextId++
@@ -153,6 +180,57 @@ function allRuns() {
   return [...Array.from(live.keys()).reverse().map(currentRun), ...seeded.filter(run => !live.has(run.id))]
 }
 
+function mockPurchaseOrder(number: string): Schemas['PurchaseOrderDetail'] {
+  const order = fixtures.orders.find(item => item.po_number === number)
+  if (!order) return notFound()
+  const { billed_value: _billed, ordered_value: _ordered, pct_billed: _pct, ...po } = order
+  const blanket = number === fixtures.blanketOrder.po.po_number ? fixtures.blanketOrder : null
+  const runs = allRuns().filter(run => run.po_number === number)
+  const grns = blanket?.grns ?? (po.match_type === 'three_way' && number !== 'KF-PO-0120' ? po.lines.map(line => ({
+    grn_number: `GRN-${number.slice(-4)}`, po_number: number, line_no: line.line_no,
+    quantity_received: line.quantity, received_date: '2026-11-09',
+  })) : [])
+  const balances = po.lines.map(line => {
+    const base = blanket?.balances.find(item => item.line_no === line.line_no)
+    const approved = runs.filter(run => run.final_outcome === 'APPROVE' && run.source !== 'seed')
+    const seen = new Set<string>()
+    const contributions = approved.flatMap(run => {
+      if (run.invoice_number && seen.has(run.invoice_number)) return []
+      if (run.invoice_number) seen.add(run.invoice_number)
+      const detail = currentRun(run.id)
+      const row = detail.matching?.rows.find(match => match.po_line_nos.length === 1 && match.po_line_nos[0] === line.line_no)
+      if (!row?.qty_invoiced) return []
+      const amount = row.status === 'fail' ? Math.min(Number(row.qty_invoiced), Number(row.qty_available ?? 0)) : Number(row.qty_invoiced)
+      return amount > 0 ? [{ id: run.id, amount }] : []
+    })
+    const seededQuantity = base?.billed ?? (number === 'KF-PO-0126' ? line.quantity : '0')
+    const seededInvoices = base?.invoices ?? runs.filter(run => run.source === 'seed' && run.final_outcome === 'APPROVE').map(run => run.id)
+    const billed = Number(seededQuantity) + contributions.reduce((sum, item) => sum + item.amount, 0)
+    const received = grns.filter(grn => grn.line_no === line.line_no).reduce((sum, receipt) => sum + Number(receipt.quantity_received), 0)
+    return {
+      line_no: line.line_no, po_number: number, ordered: line.quantity, received: String(received), billed: String(billed),
+      remaining_to_bill: String(Math.max(0, Number(line.quantity) - billed)),
+      received_unbilled: po.match_type === 'three_way' ? String(Math.max(0, received - billed)) : null,
+      invoices: [...seededInvoices, ...contributions.map(item => item.id)],
+    }
+  })
+  return { po, balances, grns, runs }
+}
+
+function mockOrders(): Schemas['PurchaseOrderOut'][] {
+  return fixtures.orders.map(order => {
+    const detail = mockPurchaseOrder(order.po_number)
+    let billedCents = 0n
+    for (const line of order.lines) {
+      const billed = detail.balances.find(balance => balance.line_no === line.line_no)?.billed ?? '0'
+      billedCents += BigInt(billed) * toCents(line.unit_price)
+    }
+    const orderedCents = toCents(order.ordered_value)
+    const hundredths = orderedCents ? (billedCents * 10_000n + orderedCents / 2n) / orderedCents : 0n
+    return { ...order, billed_value: moneyString(billedCents), pct_billed: moneyString(hundredths) }
+  })
+}
+
 function listRuns({ q, offset = 0, limit = 50, ...filters }: NonNullable<RequestOptions['query']> = {}) {
   const search = typeof q === 'string' ? q.trim().toLowerCase() : ''
   const matches = allRuns().filter(run =>
@@ -213,14 +291,53 @@ function getStats() {
 }
 
 function addMoney(values: (string | null)[]) {
-  const cents = values.reduce((sum, value) => {
-    if (!value) return sum
-    const [whole, fraction = ''] = value.replace(/^-/, '').split('.')
-    const amount = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
-    return sum + (value.startsWith('-') ? -amount : amount)
-  }, 0n)
+  return moneyString(values.reduce((sum, value) => sum + toCents(value ?? '0'), 0n))
+}
+
+function toCents(value: string) {
+  const [whole, fraction = ''] = value.replace(/^-/, '').split('.')
+  const amount = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+  return value.startsWith('-') ? -amount : amount
+}
+
+function moneyString(cents: bigint) {
   const absolute = cents < 0 ? -cents : cents
   return `${cents < 0 ? '-' : ''}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`
+}
+
+function previewPolicy(request: Schemas['PolicyPreviewRequest']): Schemas['PolicyPreviewResponse'] {
+  const tolerances = request.overrides?.tolerances as { unit_price_pct?: unknown; header_abs?: unknown } | undefined
+  const approval = request.overrides?.approval as { auto_approve_limit?: unknown } | undefined
+  const unit = Number(tolerances?.unit_price_pct ?? 2)
+  const header = String(tolerances?.header_abs ?? '2500.00')
+  const approvalLimit = String(approval?.auto_approve_limit ?? '500000.00')
+  if (![header, approvalLimit].every(value => /^\d+(\.\d{1,2})?$/.test(value)) || !Number.isFinite(unit) ||
+    unit < 0 || !Number.isSafeInteger(request.limit) || request.limit < 1) {
+    throw new ApiError(422, 'invalid_policy_preview', 'Enter valid policy limits and try again.')
+  }
+  const limit = toCents(approvalLimit)
+  const runs = allRuns().filter(run => run.outcome && (run.status === 'completed' || run.status === 'awaiting_review'))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, request.limit)
+  const changes = runs.flatMap<Schemas['PolicyPreviewChange']>(run => {
+    const detail = currentRun(run.id)
+    const before = run.final_outcome ?? run.outcome!
+    const amount = run.total ? toCents(run.total) : 0n
+    const reasonsBefore = detail.decision?.reasons ?? []
+    const identity = { run_id: run.id, display_id: run.display_id }
+    if (detail.review_actions.length) return []
+    if (run.scenario_id === 'S12' && before === 'HOLD' && unit >= 8.53 && toCents(header) >= 312_000n && amount <= limit) {
+      return [{ ...fixtures.policyPreview.changed[0], ...identity }]
+    }
+    if (run.primary_reason === 'APPROVAL_LIMIT_EXCEEDED' && before === 'HOLD' && amount <= limit) {
+      return [{ ...identity, before, after: 'APPROVE', reasons_before: reasonsBefore, reasons_after: [] }]
+    }
+    if (before === 'APPROVE' && run.outcome === 'APPROVE' && amount > limit) {
+      return [{ ...identity, before, after: 'HOLD', reasons_before: reasonsBefore,
+        reasons_after: ['APPROVAL_LIMIT_EXCEEDED', ...reasonsBefore] }]
+    }
+    return []
+  })
+  return { changed: changes, unchanged: runs.length - changes.length }
 }
 
 function notFound(): never {
@@ -244,6 +361,7 @@ export function mockRequest(method: string, path: string, options: RequestOption
     nextId = fixtures.runs.total + 1
     return { status: 'ok', runs: seeded.length }
   }
+  if (method === 'POST' && path === '/policy/preview') return previewPolicy(options.json as Schemas['PolicyPreviewRequest'])
   const review = /^\/runs\/(\d+)\/review$/.exec(path)
   if (method === 'POST' && review) {
     const id = Number(review[1])
@@ -259,10 +377,7 @@ export function mockRequest(method: string, path: string, options: RequestOption
     return { run, events: live.get(run.id)?.events ?? makeEvents(run), raw_model_output: run.extraction?.meta.raw ?? null }
   }
   if (path.startsWith('/purchase-orders/')) {
-    const number = decodeURIComponent(path.slice('/purchase-orders/'.length))
-    if (number === fixtures.blanketOrder.po.po_number) return fixtures.blanketOrder
-    const po = fixtures.orders.find(order => order.po_number === number)
-    return po ? { po, balances: [], grns: [], runs: allRuns().filter(run => run.po_number === number) } : notFound()
+    return mockPurchaseOrder(decodeURIComponent(path.slice('/purchase-orders/'.length)))
   }
   switch (path) {
     case '/health': return fixtures.health
@@ -271,7 +386,7 @@ export function mockRequest(method: string, path: string, options: RequestOption
     case '/queue': return getQueue(options.query)
     case '/vendors': return fixtures.vendors
     case '/purchase-orders':
-      return fixtures.orders.filter(order =>
+      return mockOrders().filter(order =>
         (!options.query?.vendor_id || order.vendor_id === options.query.vendor_id)
         && (!options.query?.status || order.status === options.query.status),
       )

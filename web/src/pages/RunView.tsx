@@ -73,7 +73,7 @@ function saveFile(blob: Blob, filename?: string) {
 function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolean }) {
   const queryClient = useQueryClient()
   const [pace] = useState(preview || snapshot.status === 'running' || snapshot.status === 'queued')
-  const { progress, connection, resume, animate } = useRunProgress(snapshot.id, pace)
+  const { progress, connection, resume, animate } = useRunProgress(snapshot.id, pace, snapshot.review_actions.at(-1)?.created_at)
   const run = mergeRun(snapshot, progress, animate)
   const health = useHealth()
   const [field, setField] = useState<FieldKey | null>(null)
@@ -91,7 +91,7 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
   function reviewed(updated: Detail) {
     queryClient.setQueryData(queryKeys.run(run.id), updated)
     void queryClient.invalidateQueries({ queryKey: queryKeys.run(run.id) })
-    resume()
+    resume(updated.review_actions.at(-1)?.created_at)
   }
 
   const tabs = () => <Tabs value={tab} onValueChange={value => { setField(null); setTab(value as RunTab) }} className="min-w-0 gap-0">

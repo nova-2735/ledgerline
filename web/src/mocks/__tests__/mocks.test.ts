@@ -45,6 +45,7 @@ it('parses each fixture and matches its generated API schema', () => {
   const single = {
     HealthResponse: fixtures.health, StatsResponse: fixtures.stats, RunList: fixtures.runs,
     QueueResponse: fixtures.queue, PurchaseOrderDetail: fixtures.blanketOrder, PolicyResponse: fixtures.policy,
+    PolicyPreviewResponse: fixtures.policyPreview,
   }
   const lists = {
     DemoInboxItem: fixtures.inbox, VendorOut: fixtures.vendors, PurchaseOrderOut: fixtures.orders,

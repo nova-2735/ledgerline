@@ -8,10 +8,11 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Dashboard } from '@/pages/Dashboard'
 import { Inbox } from '@/pages/Inbox'
 import { RunView } from '@/pages/RunView'
-
-function Placeholder({ title }: { title: string }) {
-  return <div className="panel p-6"><h1 className="page-title">{title}</h1><p className="mt-2 text-muted-foreground">Coming in next block</p></div>
-}
+import { Policy } from '@/pages/Policy'
+import { PoDetail } from '@/pages/PoDetail'
+import { PurchaseOrders } from '@/pages/PurchaseOrders'
+import { Queue } from '@/pages/Queue'
+import { Vendors } from '@/pages/Vendors'
 
 export default function App() {
   const [queryClient] = useState(() => {
@@ -28,11 +29,11 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="inbox" element={<Inbox />} />
             <Route path="runs/:id" element={<RunView />} />
-            <Route path="queue" element={<Placeholder title="Review queue" />} />
-            <Route path="purchase-orders" element={<Placeholder title="Purchase orders" />} />
-            <Route path="purchase-orders/:po" element={<Placeholder title="Purchase order" />} />
-            <Route path="vendors" element={<Placeholder title="Vendors" />} />
-            <Route path="policy" element={<Placeholder title="Policy" />} />
+            <Route path="queue" element={<Queue />} />
+            <Route path="purchase-orders" element={<PurchaseOrders />} />
+            <Route path="purchase-orders/:po" element={<PoDetail />} />
+            <Route path="vendors" element={<Vendors />} />
+            <Route path="policy" element={<Policy />} />
             <Route path="*" element={<div className="panel p-6"><h1 className="page-title">Page not found</h1><Link to="/" className="mt-2 inline-block text-indigo-700 hover:underline">Go to dashboard</Link></div>} />
           </Route>
         </Routes>

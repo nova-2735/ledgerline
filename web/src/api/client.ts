@@ -144,6 +144,14 @@ export const api = {
     request<Schemas['PurchaseOrderDetail']>('GET', `/purchase-orders/${enc(po)}`, { signal }),
 
   policy: (signal?: AbortSignal) => request<Schemas['PolicyResponse']>('GET', '/policy', { signal }),
+  policyCanSave: async (signal?: AbortSignal) => {
+    if (USE_MOCKS) return false
+    const response = await fetch(buildUrl('/policy'), {
+      method: 'OPTIONS', signal, headers: accessCode ? { 'X-Access-Code': accessCode } : undefined,
+    })
+    if ([404, 501].includes(response.status)) return false
+    return (response.headers.get('Allow') ?? '').split(',').some(method => method.trim().toUpperCase() === 'PUT')
+  },
   previewPolicy: (body: Schemas['PolicyPreviewRequest']) =>
     request<Schemas['PolicyPreviewResponse']>('POST', '/policy/preview', { json: body }),
   updatePolicy: (body: Schemas['PolicyUpdateRequest']) =>

@@ -9,6 +9,20 @@
     },
     "approval": {
       "auto_approve_limit": "500000.00"
+    },
+    "po_inference": {
+      "min_score": "0.85",
+      "min_gap": "0.15"
+    },
+    "duplicates": {
+      "lookback_days": 365
+    },
+    "extraction": {
+      "confidence_threshold": "0.80"
+    },
+    "dates": {
+      "stale_days": 90,
+      "future_days": 0
     }
   }
 }

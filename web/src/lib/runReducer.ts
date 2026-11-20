@@ -100,7 +100,9 @@ export function mergeRun(snapshot: Detail, progress: RunProgress, animate: boole
   const decision = canShowDecision ? (progress.decision ?? snapshot.decision) : null
   const allowed = new Set(progress.stages.filter(row => !['running', 'pending'].includes(row.status)).map(row => row.name))
   const checks = new Map(snapshot.checks.filter(check => allowed.has(check.stage)).map(check => [check.rule_id, check]))
-  for (const check of Object.values(progress.checks)) checks.set(check.rule_id, check)
+  for (const check of Object.values(progress.checks)) {
+    if (!checks.get(check.rule_id)?.resolved_by_review || check.resolved_by_review) checks.set(check.rule_id, check)
+  }
   const mergedStages = progress.stages.map(stage => {
     const saved = snapshot.stages.find(row => row.name === stage.name)
     if (!saved || (lastResume && stageOrder.indexOf(stage.name) >= stageOrder.indexOf(resumeStage)

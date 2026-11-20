@@ -6,6 +6,7 @@ import health from './health.json'
 import inbox from './inbox.json'
 import blanketOrder from './po_KF-PO-0119.json'
 import policy from './policy.json'
+import policyPreview from './policy_preview_S12.json'
 import orders from './purchase_orders.json'
 import queue from './queue.json'
 import detailS01 from './run_detail_S01.json'
@@ -31,6 +32,7 @@ export const fixtures = {
   orders: fixture<Schemas['PurchaseOrderOut'][]>(orders),
   blanketOrder: fixture<Schemas['PurchaseOrderDetail']>(blanketOrder),
   policy: fixture<Schemas['PolicyResponse']>(policy),
+  policyPreview: fixture<Schemas['PolicyPreviewResponse']>(policyPreview),
   queue: fixture<Schemas['QueueResponse']>(queue),
   runs: fixture<Schemas['RunList']>(runs),
   stats: fixture<Schemas['StatsResponse']>(stats),

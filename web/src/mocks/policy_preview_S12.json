@@ -1,0 +1,13 @@
+{
+  "changed": [
+    {
+      "run_id": 25,
+      "display_id": "R-0025",
+      "before": "HOLD",
+      "after": "APPROVE",
+      "reasons_before": ["PRICE_VARIANCE_OVER_TOL", "AMOUNT_VARIANCE_OVER_TOL"],
+      "reasons_after": ["PRICE_VARIANCE_WITHIN_TOL", "ROUND_OFF_APPLIED"]
+    }
+  ],
+  "unchanged": 24
+}
