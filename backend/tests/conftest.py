@@ -31,3 +31,7 @@ def client() -> Iterator[TestClient]:
 
     with TestClient(create_app()) as c:
         yield c
+
+
+# Shared demo-world fixtures (generated world, loaded reference data, seeded ledger).
+from tests.helpers.world import demo_world, seeded_world  # noqa: E402, F401

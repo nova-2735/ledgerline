@@ -23,3 +23,8 @@
 - Extraction: `extract()` returns `ExtractResult(extraction, events, detail)`; events are `stage.log` drafts that the pipeline numbers and timestamps.
 - LLM: cache hits keep the original token counts with `cached=true`; the hourly budget counts only live (non-fake) calls, per process; Gemini output tokens include thinking tokens.
 - LLM: the fake provider's `map_lines` returns no suggestions and `polish` returns the summary unchanged.
+- Reference lookups take the database session as their first argument (`resolve_vendor(session, extraction)`, `Ledger(session).balances(po)`), so callers control the transaction.
+- PO inference amount component: overshoot % is measured against the PO's remaining value (ordered − billed, × PO price), not against the 2% headroom; a PO with nothing left to bill scores 0.
+- PO inference with an unknown vendor scores the 20 most recent open POs (by PO date).
+- Price comparison for tax-inclusive lines uses the pre-tax unit price (taxable amount ÷ quantity).
+- Duplicate-check ledger rows are taken within `window_days` either side of the given date (default today); rows without an invoice date are always kept.
