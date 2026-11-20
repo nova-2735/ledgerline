@@ -80,7 +80,7 @@ export function invokeShortcut(id: Shortcut) {
   window.dispatchEvent(new CustomEvent(invokeEvent, { detail: id }))
 }
 
-export function useShortcuts(handlers: Handlers, enabled = true) {
+export function useShortcuts(handlers: Handlers, enabled = true, modalScope?: string) {
   const currentHandlers = useEffectEvent(() => handlers)
 
   useEffect(() => {
@@ -90,8 +90,9 @@ export function useShortcuts(handlers: Handlers, enabled = true) {
     function onKey(event: KeyboardEvent) {
       const target = event.target instanceof Element ? event.target : document.activeElement
       const editable = target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')
+      const overlay = [...document.querySelectorAll('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]')].at(-1)
       if (event.defaultPrevented || event.isComposing || event.altKey || editable ||
-        document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]')) {
+        (overlay && (!modalScope || overlay.getAttribute('data-shortcut-scope') !== modalScope))) {
         prefixAt = -Infinity
         return
       }
@@ -132,5 +133,5 @@ export function useShortcuts(handlers: Handlers, enabled = true) {
       window.removeEventListener('keydown', onKey, capture)
       window.removeEventListener(invokeEvent, onInvoke)
     }
-  }, [enabled])
+  }, [enabled, modalScope])
 }

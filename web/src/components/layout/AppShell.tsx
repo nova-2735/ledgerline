@@ -3,14 +3,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, setAccessCode } from '@/api/client'
-import { isAccessError, queryKeys, useHealth, useQueue, useRun, useRuns } from '@/api/hooks'
+import { isAccessError, queryKeys, useHealth, useQueue, useRuns } from '@/api/hooks'
 import { ErrorState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { AppSidebar } from './AppSidebar'
 import { CommandPalette } from './CommandPalette'
-import { PageActionsTarget } from './PageActions'
+import { PageActionsTarget, RunConnection } from './PageActions'
 import { ShortcutSheet } from './ShortcutSheet'
 import { StatusBar, healthLabel } from './StatusBar'
 import { TopBar } from './TopBar'
@@ -41,7 +41,7 @@ export function AppShell() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [actionTarget, setActionTarget] = useState<HTMLDivElement | null>(null)
   const runRoute = useMatch('/runs/:id')
-  const activeRun = useRun(Number(runRoute?.params.id))
+  const [runLive, setRunLive] = useState(false)
   const runs = useRuns({ limit: 1 })
   const toggleTheme = () => setDark(value => !value)
   const toggleSidebar = () => setCollapsed(value => !value)
@@ -114,11 +114,11 @@ export function AppShell() {
     <div className="flex min-h-0 min-w-0 flex-col">
       <TopBar actionsRef={setActionTarget} />
       <main id="main" className="min-h-0 flex-1 overflow-auto">
-        <PageActionsTarget.Provider value={actionTarget}><Outlet /></PageActionsTarget.Provider>
+        <RunConnection.Provider value={setRunLive}><PageActionsTarget.Provider value={actionTarget}><Outlet /></PageActionsTarget.Provider></RunConnection.Provider>
       </main>
     </div>
     <StatusBar health={health.data?.health} ms={health.data?.ms} error={health.isError} count={runs.data?.total}
-      dark={dark} live={['running', 'queued'].includes(activeRun.data?.status ?? '')} onHealth={() => setDialog('health')}
+      dark={dark} live={runLive} onHealth={() => setDialog('health')}
       onTheme={toggleTheme} onHelp={() => setShortcutsOpen(true)} />
     <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onReset={openReset} onSidebar={toggleSidebar} />
     <ShortcutSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

@@ -1,30 +1,32 @@
-import { useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Circle, Download, FileText, PanelBottom } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { PanelBottom } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, runDocumentUrl, USE_MOCKS, type Schemas } from '@/api/client'
-import { queryKeys, useHealth, useRun } from '@/api/hooks'
+import { queryKeys, useAllRuns, useHealth, useRun } from '@/api/hooks'
 import { useRunProgress } from '@/api/useRunProgress'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
-import { OutcomeBadge } from '@/components/OutcomeBadge'
-import { SourceBadge } from '@/components/SourceBadge'
+import { PageActions, RunConnection } from '@/components/layout/PageActions'
 import { AuditPanel } from '@/components/run/AuditPanel'
 import { DecisionPanel } from '@/components/run/DecisionPanel'
 import { DocumentViewer } from '@/components/run/DocumentViewer'
 import { FieldsPanel } from '@/components/run/FieldsPanel'
 import { MatchingPanel } from '@/components/run/MatchingPanel'
+import { RecordBar } from '@/components/run/RecordBar'
 import { ReviewDialogs } from '@/components/run/ReviewDialogs'
+import { actionShortcut, approvalBlock, reviewActions } from '@/components/run/reviewActions'
 import { StageTimeline } from '@/components/run/StageTimeline'
+import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { duration, inr, istTime } from '@/lib/format'
 import type { FieldKey } from '@/lib/invoiceFields'
 import { mergeRun } from '@/lib/runReducer'
+import { useShortcuts, type Shortcut } from '@/lib/shortcuts'
 
 type Detail = Schemas['RunDetail']
 type Action = Schemas['ActionType']
-const tabLabels = { decision: 'Decision', fields: 'Details', matching: 'Matching', audit: 'Audit' }
+const tabLabels = { decision: 'Decision', fields: 'Fields', matching: 'Matching', audit: 'Audit' }
 type RunTab = keyof typeof tabLabels
 
 export function RunView() {
@@ -41,15 +43,14 @@ export function RunView() {
   if (preview && alias.isPending) return <RunSkeleton />
   if (alias.isError) return <ErrorState title="Could not open this demo scenario" error={alias.error} retry={() => void alias.refetch()} />
   if (number === undefined || !Number.isSafeInteger(number) || number < 1) {
-    return <EmptyState title="Invoice run not found"><Link className="text-indigo-700 underline" to="/">Go to dashboard</Link></EmptyState>
+    return <EmptyState title="Invoice run not found"><Link className="text-link" to="/runs">View runs</Link></EmptyState>
   }
   return <RunLoader key={number} id={number} preview={preview} />
 }
 
 function RunSkeleton() {
-  return <div className="grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)_440px]">
-    <div className="panel xl:col-span-3"><LoadingState label="Loading invoice run" /></div>
-    {['Timeline', 'Document', 'Decision'].map(label => <div key={label} className="panel min-h-60"><LoadingState label={`Loading ${label.toLowerCase()}`} /></div>)}
+  return <div className="grid gap-px bg-border xl:h-full xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+    {['Timeline', 'Document', 'Decision'].map(label => <section key={label} className="min-h-60 bg-card"><LoadingState label={'Loading ' + label.toLowerCase()} /></section>)}
   </div>
 }
 
@@ -71,83 +72,101 @@ function saveFile(blob: Blob, filename?: string) {
 }
 
 function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolean }) {
-  const queryClient = useQueryClient()
+  const cache = useQueryClient()
+  const navigate = useNavigate()
+  const setLive = useContext(RunConnection)
   const [pace] = useState(preview || snapshot.status === 'running' || snapshot.status === 'queued')
   const { progress, connection, resume, animate } = useRunProgress(snapshot.id, pace, snapshot.review_actions.at(-1)?.created_at)
   const run = mergeRun(snapshot, progress, animate)
   const health = useHealth()
+  const all = useAllRuns()
+  const index = all.data?.findIndex(item => item.id === run.id) ?? -1
+  const previous = index >= 0 ? all.data?.[index + 1]?.id : undefined
+  const next = index > 0 ? all.data?.[index - 1]?.id : undefined
   const [field, setField] = useState<FieldKey | null>(null)
   const [action, setAction] = useState<Action | null>(null)
   const [tab, setTab] = useState<RunTab>('decision')
+  const [sheet, setSheet] = useState(false)
   const running = run.status === 'running' || run.status === 'queued'
+  const tabKeys = Object.keys(tabLabels) as RunTab[]
+  useEffect(() => {
+    setLive?.(running && connection === 'connected')
+    return () => setLive?.(false)
+  }, [setLive, running, connection])
+
   const audit = useMutation({
     mutationFn: () => api.getRunAudit(run.id),
-    onSuccess: data => saveFile(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `${run.display_id}-audit.json`),
+    onSuccess: data => saveFile(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), run.display_id + '-audit.json'),
   })
   const original = useMutation({
     mutationFn: async () => (await import('@/mocks/mockDocument')).mockOriginalPdf(run.id),
     onSuccess: blob => saveFile(blob),
   })
+  function openOriginal() {
+    if (USE_MOCKS) original.mutate()
+    else window.open(runDocumentUrl(run.id), '_blank', 'noopener,noreferrer')
+  }
   function reviewed(updated: Detail) {
-    queryClient.setQueryData(queryKeys.run(run.id), updated)
-    void queryClient.invalidateQueries({ queryKey: queryKeys.run(run.id) })
+    cache.setQueryData(queryKeys.run(run.id), updated)
+    void cache.invalidateQueries({ queryKey: queryKeys.run(run.id) })
     resume(updated.review_actions.at(-1)?.created_at)
   }
+  function go(id: number) { void navigate('/runs/' + id) }
+  function selectTab(nextTab: RunTab, openSheet = false) {
+    setField(null)
+    setTab(nextTab)
+    if (openSheet && window.innerWidth < 1280) setSheet(true)
+  }
+  function ask(action: Action) {
+    if (!reviewActions(run).includes(action) || (action === 'approve' && approvalBlock(run))) return
+    setAction(action)
+  }
+  const reviewKeys = Object.fromEntries(reviewActions(run).flatMap(action => {
+    const shortcut = actionShortcut(action)
+    return shortcut ? [[shortcut, () => ask(action)]] : []
+  })) as Partial<Record<Shortcut, () => void>>
+  useShortcuts({
+    ...reviewKeys,
+    decision: () => selectTab('decision', true), fields: () => selectTab('fields', true),
+    matching: () => selectTab('matching', true), audit: () => selectTab('audit', true),
+    prevRun: () => { if (previous) go(previous) }, nextRun: () => { if (next) go(next) },
+  }, !action, 'run-evidence')
 
-  const tabs = () => <Tabs value={tab} onValueChange={value => { setField(null); setTab(value as RunTab) }} className="min-w-0 gap-0">
-    <TabsList className="grid h-10 w-full grid-cols-4 rounded-none border-b bg-slate-50 px-2">
-      {Object.entries(tabLabels).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}
+  const tabs = () => <Tabs value={tab} onValueChange={value => selectTab(value as RunTab)} className="flex h-full min-h-0 min-w-0 flex-col gap-0">
+    <TabsList className="grid h-9 w-full shrink-0 grid-cols-4 rounded-none border-b bg-card px-1 py-0">
+      {tabKeys.map(key => <TabsTrigger key={key} value={key}
+        className="h-full rounded-none border-b-2 border-transparent px-1 text-meta shadow-none! data-active:border-primary data-active:bg-card data-active:text-primary">
+        {tabLabels[key]}<ShortcutHint id={key} />
+      </TabsTrigger>)}
     </TabsList>
-    <div className="min-w-0 px-3 py-3 xl:max-h-[calc(100vh-233px)] xl:overflow-y-auto">
-      <TabsContent value="decision"><DecisionPanel run={run} onAction={setAction} onHighlight={setField} /></TabsContent>
+    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2.5">
+      <TabsContent value="decision"><DecisionPanel run={run} onAction={ask} onHighlight={setField} /></TabsContent>
       <TabsContent value="fields"><FieldsPanel extraction={run.extraction} onHighlight={setField} /></TabsContent>
       <TabsContent value="matching"><MatchingPanel run={run} /></TabsContent>
       <TabsContent value="audit"><AuditPanel run={run} events={progress.events} download={() => audit.mutate()} /></TabsContent>
     </div>
   </Tabs>
 
-  return <div className="space-y-3">
-    <Link to={run.source === 'demo' ? '/inbox' : '/'} className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-700 hover:underline">
-      <ArrowLeft aria-hidden="true" className="size-4" />{run.source === 'demo' ? 'AP inbox' : 'All runs'}
-    </Link>
-    <header className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <SourceBadge source={run.source} />
-          <span className="text-xs font-medium text-muted-foreground tabular-nums">{run.display_id}</span>
-          {running && <span className="status-chip bg-indigo-50 text-indigo-800"><Circle aria-hidden="true" className="fill-current" />Live</span>}
-          {running && connection === 'retrying' && <span role="status" className="text-xs text-amber-800">Reconnecting to live updates…</span>}
-          {run.outcome && <OutcomeBadge outcome={run.final_outcome ?? run.outcome} />}
-        </div>
-        <h1 title={run.filename} className="mt-1.5 text-xl leading-tight font-semibold tracking-tight wrap-anywhere">{run.filename}</h1>
-        <p className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-sm text-muted-foreground tabular-nums">
-          <strong className="font-medium text-slate-800">{run.vendor_name ?? 'Unknown vendor'}</strong>
-          {run.invoice_number && <span>· {run.invoice_number}</span>}{run.total && <span>· {inr(run.total)}</span>}
-          <span>· Received {istTime(run.created_at)}</span>{run.duration_ms != null && <span>· {duration(run.duration_ms)}</span>}
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={audit.isPending} onClick={() => audit.mutate()}><Download aria-hidden="true" />Download audit (JSON)</Button>
-        {USE_MOCKS ? <Button type="button" variant="outline" size="sm" disabled={original.isPending} onClick={() => original.mutate()}>
-          <FileText aria-hidden="true" />Open original PDF
-        </Button> : <Button asChild variant="outline" size="sm"><a href={runDocumentUrl(run.id)} target="_blank" rel="noreferrer">
-          <FileText aria-hidden="true" />Open original PDF
-        </a></Button>}
-      </div>
-    </header>
+  return <div className="flex min-h-full flex-col xl:h-full xl:min-h-0">
+    <PageActions>
+      <span className="hidden max-w-56 truncate text-meta text-muted-foreground md:inline" title={run.filename}>{run.filename}</span>
+      {run.source === 'demo' && <Link className="text-link text-meta" to="/inbox">Inbox</Link>}
+    </PageActions>
+    <RecordBar run={run} prev={previous} next={next} navigate={go} download={() => audit.mutate()} downloading={audit.isPending} original={openOriginal} />
+    {running && connection === 'retrying' && <p role="status" className="border-b bg-card px-3 py-1 text-meta text-hold">Reconnecting to live updates…</p>}
     {audit.isError && <ErrorState title="Could not download the audit" error={audit.error} retry={() => audit.mutate()} />}
     {original.isError && <ErrorState title="Could not open the invoice PDF" error={original.error} retry={() => original.mutate()} />}
-    <div className="grid items-start gap-3 md:grid-cols-[minmax(270px,1fr)_minmax(0,2fr)] xl:grid-cols-[320px_minmax(0,1fr)_440px]">
+    <div className="grid min-h-0 flex-1 gap-px bg-border md:grid-cols-[minmax(230px,0.85fr)_minmax(0,2fr)] xl:grid-cols-[300px_minmax(0,1fr)_420px]">
       <StageTimeline run={run} progress={progress} onHighlight={setField} />
-      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.health.ocr_available} />
-      <section aria-label="Decision and evidence" className="panel hidden min-w-0 overflow-hidden xl:block">{tabs()}</section>
+      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.health.ocr_available} original={openOriginal} />
+      <section aria-label="Decision and evidence" className="hidden min-h-0 min-w-0 overflow-hidden bg-card xl:block">{tabs()}</section>
     </div>
-    <div className="sticky bottom-3 flex justify-end xl:hidden">
-      <Sheet>
-        <SheetTrigger asChild><Button className="shadow-md"><PanelBottom aria-hidden="true" />Decision and evidence</Button></SheetTrigger>
-        <SheetContent side="bottom" className="max-h-[88dvh] gap-2 overflow-y-auto rounded-t-xl">
-          <SheetHeader className="pb-1"><SheetTitle>Decision and evidence</SheetTitle><SheetDescription>Review invoice fields, matching and the event log.</SheetDescription></SheetHeader>
-          {tabs()}
+    <div className="sticky bottom-0 flex justify-end border-t bg-card p-2 xl:hidden">
+      <Button type="button" onClick={() => setSheet(true)}><PanelBottom aria-hidden="true" />Decision and evidence</Button>
+      <Sheet open={sheet} onOpenChange={setSheet}>
+        <SheetContent side="bottom" data-shortcut-scope="run-evidence" className="h-[78dvh] max-h-[88dvh] gap-0 overflow-hidden">
+          <SheetHeader className="sr-only"><SheetTitle>Decision and evidence</SheetTitle><SheetDescription>Review invoice fields, matching and the event log.</SheetDescription></SheetHeader>
+          <div className="min-h-0 flex-1 pt-10">{tabs()}</div>
         </SheetContent>
       </Sheet>
     </div>

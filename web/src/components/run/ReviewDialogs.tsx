@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { inr } from '@/lib/format'
 import { criticalFields, fieldLabels } from '@/lib/invoiceFields'
 import { actions } from '@/lib/labels'
-import { approvalBlock } from './DecisionPanel'
+import { approvalBlock } from './reviewActions'
 
 type Run = Schemas['RunDetail']
 type Action = Schemas['ActionType']
@@ -86,18 +86,18 @@ function ReviewForm({ action, run, onClose, onReviewed }: {
         <DialogDescription>{descriptions[action]}</DialogDescription>
       </DialogHeader>
       <form onSubmit={save} className="space-y-3">
-        {(action === 'approve' || action === 'reject') && <p className="rounded-lg bg-slate-50 p-2.5 text-sm">
+        {(action === 'approve' || action === 'reject') && <p className="rounded-sm bg-muted p-2.5 text-sm">
           <strong>{run.invoice_number ?? run.display_id}</strong> · <span className="tabular-nums">{inr(run.total)}</span>
         </p>}
         {action === 'confirm_po' && <fieldset className="space-y-2">
           <legend className="mb-1.5 text-sm font-semibold">Purchase order</legend>
-          {candidates.length ? candidates.map(candidate => <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm" key={candidate.po_number}>
+          {candidates.length ? candidates.map(candidate => <label className="flex cursor-pointer items-start gap-2 rounded-sm border p-2.5 text-sm" key={candidate.po_number}>
             <input name="purchase-order" type="radio" value={candidate.po_number} checked={po === candidate.po_number}
-              onChange={event => setPo(event.target.value)} className="mt-0.5 accent-indigo-600" />
+              onChange={event => setPo(event.target.value)} className="mt-0.5 accent-primary" />
             <span><strong>{candidate.po_number}</strong><span className="block text-xs text-muted-foreground">{candidate.reason}</span></span>
           </label>) : <Input aria-label="Purchase order number" required value={po} onChange={event => setPo(event.target.value)} />}
         </fieldset>}
-        {action === 'verify_bank' && <fieldset className="space-y-2 rounded-lg border bg-slate-50 p-2.5">
+        {action === 'verify_bank' && <fieldset className="space-y-2 rounded-sm border bg-muted p-2.5">
           <legend className="text-sm font-semibold">Verification</legend>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={called} onCheckedChange={state => setCalled(state === true)} />Called the number on file</label>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={knownContact} onCheckedChange={state => setKnownContact(state === true)} />Spoke to a known contact</label>
@@ -112,7 +112,7 @@ function ReviewForm({ action, run, onClose, onReviewed }: {
         {(action === 'correct_fields' || (action === 'confirm_po' && lowConfidence)) && <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={verified} onCheckedChange={state => setVerified(state === true)} />I’ve checked the highlighted fields
         </label>}
-        {action === 'send_to_vendor' && draft && <div className="space-y-1 rounded-lg border bg-slate-50 p-2.5 text-sm">
+        {action === 'send_to_vendor' && draft && <div className="space-y-1 rounded-sm border bg-muted p-2.5 text-sm">
           <p><strong>To</strong> {draft.to}</p><p><strong>Subject</strong> {draft.subject}</p>
           <p className="mt-2 whitespace-pre-wrap">{draft.body}</p>
         </div>}

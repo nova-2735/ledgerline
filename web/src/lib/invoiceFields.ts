@@ -24,7 +24,7 @@ const linkedReasons: Partial<Record<Schemas['ReasonCode'], FieldKey>> = {
 
 export function checkField(check: Schemas['CheckResult']): FieldKey | null {
   const { field, fields, field_name } = check.evidence
-  const names = [field, field_name, ...(Array.isArray(fields) ? fields : [])]
+  const names = [field, field_name, ...(Array.isArray(fields) ? fields.map(item => item && typeof item === 'object' && 'field' in item ? item.field : item) : [])]
   for (const name of names) {
     if (typeof name === 'string' && Object.hasOwn(fieldLabels, name)) return name as FieldKey
   }
