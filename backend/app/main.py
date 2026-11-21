@@ -65,7 +65,9 @@ def _status_code_name(status_code: int) -> str:
 def _install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error(_: Request, exc: APIError) -> JSONResponse:
-        return JSONResponse(_error_body(exc.detail, exc.code), status_code=exc.status_code)
+        return JSONResponse(
+            _error_body(exc.detail, exc.code), status_code=exc.status_code, headers=exc.headers
+        )
 
     @app.exception_handler(runner.ResetInProgress)
     async def reset_in_progress(_: Request, exc: runner.ResetInProgress) -> JSONResponse:

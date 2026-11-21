@@ -149,3 +149,14 @@ code, not in the prompt: the model's job is unchanged, and every new behaviour (
 in one file, a bill without a heading, a foreign currency) is decided from printed strings.
 **Trade-off.** The pack is still synthetic, and a handful of documents can only show that each
 kind of difference is handled, not how often real files differ in that way.
+
+## 16. Per-client limits in front of the model budget
+
+**Context.** The hourly live-reading budget protects the provider quota, but one client sending
+a stream of new PDFs could use all of it and leave the demo without live readings.
+**Decision.** A token bucket per client address limits how fast runs can be started, and each
+address gets its own share of the hourly live readings. A run that would need a reading no
+budget can cover is refused up front with a 429 and a plain explanation, before anything is
+stored. Saved readings are always free.
+**Trade-off.** In-memory and per process: fine for one API process, not for several; and many
+users behind one address share one bucket.

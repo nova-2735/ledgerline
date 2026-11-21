@@ -73,6 +73,7 @@ class RunState:
     client: LLMClient
     policy: Policy
     sender_email: str | None = None
+    caller: str | None = None  # client address of the request that started the run
     force_fresh: bool = False
     polish: bool | None = None
     overrides: ReviewOverrides = field(default_factory=ReviewOverrides)
@@ -241,7 +242,9 @@ def ensure_doc_read(state: RunState) -> DocumentRead:
 
 
 def extract_fields(state: RunState) -> StageResult:
-    result = extract(state.data, ensure_doc_read(state), state.client, state.force_fresh)
+    result = extract(
+        state.data, ensure_doc_read(state), state.client, state.force_fresh, caller=state.caller
+    )
     for ev in result.events:
         state.log(StageName.extract_fields, ev.message, ev.data)
     state.extraction = apply_corrections(result.extraction, state.overrides, state.doc_read)

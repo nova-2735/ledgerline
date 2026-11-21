@@ -8,17 +8,18 @@ import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import func, or_, select
 
 from app.api.deps import DB, ERROR_RESPONSES, APIError, not_found
+from app.api.limits import check_reading_budget, limit_run_rate
 from app.api.views import run_detail, run_summary, vendor_names
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.enums import Outcome, Route, RunSource, RunStatus
 from app.export.audit_pdf import audit_pdf
-from app.ingest.reader import IntakeError
+from app.ingest.reader import IntakeError, validate_pdf
 from app.ingest.render import render_page_png
 from app.ingest.storage import ensure_file
 from app.models.api import AuditExport, RunCreated, RunList
@@ -43,16 +44,21 @@ def intake_error(exc: IntakeError) -> APIError:
 @router.post("/runs", status_code=202, response_model=RunCreated)
 async def create_run(
     file: Annotated[UploadFile, File()],
+    caller: Annotated[str, Depends(limit_run_rate)],
     force_fresh: Annotated[bool, Form()] = False,
 ) -> RunCreated:
+    """Checks, in order: rate limit (429), the file itself (413/422), whether a fresh model
+    reading fits this client's and the global hourly budget (429), then starts the run."""
     limit = get_settings().max_upload_mb * 1024 * 1024
     data = await file.read(limit + 1)
     try:
+        info = await asyncio.to_thread(validate_pdf, data)
+        await asyncio.to_thread(check_reading_budget, caller, info.sha256, force_fresh)
         run_id = await asyncio.to_thread(
             runner.submit,
             data,
             file.filename or "invoice.pdf",
-            runner.SubmitMeta(source=RunSource.upload),
+            runner.SubmitMeta(source=RunSource.upload, caller=caller),
             force_fresh=force_fresh,
         )
     except IntakeError as exc:

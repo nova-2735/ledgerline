@@ -18,8 +18,13 @@ def test_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     monkeypatch.setenv("APP_TODAY", TEST_TODAY)
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    # The suite starts many runs from one test client; the limit tests switch it on.
+    monkeypatch.setenv("RATE_LIMIT_RUNS_PER_MINUTE", "0")
     get_settings.cache_clear()
     reset_caches()
+    from app.api.limits import buckets
+
+    buckets.reset()
     yield tmp_path
     from app.pipeline import runner
 

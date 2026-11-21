@@ -50,6 +50,10 @@ class LLMResponseError(LLMError):
     """The provider answered, but not with output we can use."""
 
 
+class ClientBudgetExceededError(LLMError):
+    """One client's share of the hourly live-call budget is used up."""
+
+
 class BudgetExceededError(LLMError):
     """Too many live model calls in the last hour (MAX_LIVE_LLM_CALLS_PER_HOUR)."""
 

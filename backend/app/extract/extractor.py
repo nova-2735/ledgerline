@@ -10,7 +10,7 @@ from typing import Any, NamedTuple
 
 from app.config import Settings, get_settings
 from app.llm.base import CallMeta, LLMClient
-from app.llm.budget import CallBudget, get_budget
+from app.llm.budget import CallBudget, client_budget, get_budget
 from app.llm.cache import LLMCache, cache_key
 from app.llm.prompts import load_prompt
 from app.models.extraction import (
@@ -343,8 +343,10 @@ def transcribe(
     settings: Settings | None = None,
     cache: LLMCache | None = None,
     budget: CallBudget | None = None,
+    caller: str | None = None,
 ) -> tuple[RawInvoice, CallMeta]:
-    """Get a RawInvoice from the cache or the model (live calls count against the budget)."""
+    """Get a RawInvoice from the cache or the model. A live call counts against the caller's
+    hourly share (when the run came from a known client) and the global hourly budget."""
     settings = settings or get_settings()
     prompt = load_prompt("extract_invoice")
     key = cache_key("extract", doc.sha256, prompt.ref, client.model)
@@ -368,6 +370,8 @@ def transcribe(
             )
             return raw, meta
     if client.is_live:
+        if caller is not None and settings.max_live_llm_calls_per_client_per_hour > 0:
+            client_budget(settings.max_live_llm_calls_per_client_per_hour).acquire(caller)
         (budget or get_budget(settings.max_live_llm_calls_per_hour)).acquire()
     raw, meta = client.extract_invoice(doc_bytes, doc)
     if settings.llm_cache:
@@ -393,6 +397,20 @@ def transcribe(
     return raw, meta
 
 
+def needs_live_reading(sha256: str, force_fresh: bool, settings: Settings | None = None) -> bool:
+    """Would reading this file call the live model (no saved reading, or a fresh one asked)?"""
+    from app.llm.base import get_client
+
+    settings = settings or get_settings()
+    client = get_client(settings)
+    if not client.is_live:
+        return False
+    if force_fresh or not settings.llm_cache:
+        return True
+    key = cache_key("extract", sha256, load_prompt("extract_invoice").ref, client.model)
+    return LLMCache().get(key) is None
+
+
 def _scalar_fields(ex: InvoiceExtraction) -> dict[str, FieldValue]:
     return {
         name: v for name in type(ex).model_fields if isinstance(v := getattr(ex, name), FieldValue)
@@ -408,9 +426,17 @@ def extract(
     settings: Settings | None = None,
     cache: LLMCache | None = None,
     budget: CallBudget | None = None,
+    caller: str | None = None,
 ) -> ExtractResult:
     raw, call = transcribe(
-        doc_bytes, doc_read, client, force_fresh, settings=settings, cache=cache, budget=budget
+        doc_bytes,
+        doc_read,
+        client,
+        force_fresh,
+        settings=settings,
+        cache=cache,
+        budget=budget,
+        caller=caller,
     )
     extraction = normalise(raw, _meta_from_call(call, raw), doc_read)
 

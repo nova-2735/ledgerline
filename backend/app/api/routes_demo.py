@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Path
+from fastapi import APIRouter, Body, Depends, Path
 from sqlalchemy import select
 
 from app.api.deps import DB, ERROR_RESPONSES, APIError, not_found
+from app.api.limits import check_reading_budget, limit_run_rate
 from app.api.routes_runs import intake_error
 from app.demo.seed import load_manifest, reset, world_dir
 from app.enums import RunSource
@@ -38,6 +40,7 @@ def _inbox(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
 @router.post("/demo/runs/{doc_id}", status_code=202, response_model=RunCreated)
 def create_demo_run(
     doc_id: Annotated[str, Path(pattern=r"^[SU]\d{2}$")],
+    caller: Annotated[str, Depends(limit_run_rate)],
     body: Annotated[DemoRunRequest | None, Body()] = None,
 ) -> RunCreated:
     info = _inbox(_manifest()).get(doc_id)
@@ -45,6 +48,8 @@ def create_demo_run(
         raise not_found(f"Demo document {doc_id}")
     email = info.get("email") or {}
     data = (world_dir() / info["file"]).read_bytes()
+    force_fresh = bool(body and body.force_fresh)
+    check_reading_budget(caller, hashlib.sha256(data).hexdigest(), force_fresh)
     try:
         run_id = runner.submit(
             data,
@@ -55,8 +60,9 @@ def create_demo_run(
                 sender_name=email.get("sender_name"),
                 sender_email=email.get("sender_email"),
                 subject=email.get("subject"),
+                caller=caller,
             ),
-            force_fresh=bool(body and body.force_fresh),
+            force_fresh=force_fresh,
         )
     except IntakeError as exc:
         raise intake_error(exc) from exc

@@ -44,27 +44,50 @@ def _open(data: bytes) -> pymupdf.Document:
     try:
         return pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:
-        raise IntakeError("corrupt", "The PDF file is damaged and can't be opened.") from exc
+        raise IntakeError(
+            "corrupt",
+            "This PDF is damaged and can't be opened. Ask the vendor to send it again.",
+        ) from exc
 
 
 def _check_bytes(data: bytes) -> None:
+    """Size and magic bytes, before anything tries to parse the file. A PDF header may follow up
+    to 1 KB of leading bytes (as PDF readers allow); anything else is not a PDF."""
     settings = get_settings()
     limit = settings.max_upload_mb * 1024 * 1024
+    if not data:
+        raise IntakeError("not_pdf", "The file is empty. Upload the invoice as a PDF.")
     if len(data) > limit:
-        raise IntakeError("too_large", f"The file is larger than {settings.max_upload_mb} MB.")
+        raise IntakeError(
+            "too_large",
+            f"The file is larger than the {settings.max_upload_mb} MB limit. Send just the "
+            "invoice pages, or a smaller scan.",
+        )
     if PDF_MAGIC not in data[:1024]:
-        raise IntakeError("not_pdf", "The file is not a PDF.")
+        raise IntakeError(
+            "not_pdf",
+            "This file isn't a PDF. Upload the invoice as a PDF; a photo or scan can be saved "
+            "as PDF first.",
+        )
 
 
 def _check_document(doc: pymupdf.Document) -> int:
     """Page count of an opened PDF that passes the intake checks."""
     max_pages = get_settings().max_pages
     if doc.needs_pass or doc.is_encrypted or doc.metadata.get("encryption"):
-        raise IntakeError("encrypted", "The PDF is password-protected or encrypted.")
+        raise IntakeError(
+            "encrypted",
+            "This PDF is password-protected, so it can't be read. Ask the vendor for an "
+            "unprotected copy, or remove the password and upload it again.",
+        )
     if doc.page_count < 1:
-        raise IntakeError("corrupt", "The PDF has no pages.")
+        raise IntakeError("corrupt", "This PDF has no pages.")
     if doc.page_count > max_pages:
-        raise IntakeError("too_many_pages", f"The PDF has more than {max_pages} pages.")
+        raise IntakeError(
+            "too_many_pages",
+            f"This PDF has {doc.page_count} pages; the limit is {max_pages}. Upload just the "
+            "invoice pages.",
+        )
     return int(doc.page_count)
 
 
