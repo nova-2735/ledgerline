@@ -320,6 +320,16 @@
             "title": "Filename",
             "type": "string"
           },
+          "group": {
+            "default": "scenario",
+            "description": "scenario: the 15 demo scenarios; stress: unseen out-of-distribution files",
+            "enum": [
+              "scenario",
+              "stress"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
           "is_edge_case": {
             "title": "Is Edge Case",
             "type": "boolean"
@@ -860,6 +870,14 @@
             ],
             "title": "Invoice Number Canonical"
           },
+          "invoices_in_file": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Invoices In File",
+            "type": "array"
+          },
           "legibility": {
             "title": "Legibility",
             "type": "string"
@@ -902,6 +920,14 @@
           "prices_include_tax": {
             "title": "Prices Include Tax",
             "type": "boolean"
+          },
+          "referenced_invoices": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Referenced Invoices",
+            "type": "array"
           },
           "round_off": {
             "$ref": "#/components/schemas/FieldValue"
@@ -2887,6 +2913,7 @@
           "DOC_PROFORMA",
           "DOC_CREDIT_NOTE",
           "DOC_UNREADABLE",
+          "DOC_MULTIPLE_INVOICES",
           "FIELD_MISSING_INVOICE_NUMBER",
           "FIELD_MISSING_INVOICE_DATE",
           "FIELD_MISSING_TOTAL",
@@ -4467,7 +4494,7 @@
             "name": "doc_id",
             "required": true,
             "schema": {
-              "pattern": "^S\\d{2}$",
+              "pattern": "^[SU]\\d{2}$",
               "title": "Doc Id",
               "type": "string"
             }

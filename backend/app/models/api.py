@@ -49,6 +49,10 @@ class DemoInboxItem(Model):
     tags: list[str]
     is_edge_case: bool
     processed_run_ids: list[int]
+    group: Literal["scenario", "stress"] = Field(
+        default="scenario",
+        description="scenario: the 15 demo scenarios; stress: unseen out-of-distribution files",
+    )
 
 
 class ResetResponse(Model):

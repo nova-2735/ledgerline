@@ -21,6 +21,12 @@ def gstin_usable(ctx: RuleContext) -> bool:
     return gstin_util.validate(supplier_gstin(ctx))
 
 
+def gst_charged(ctx: RuleContext) -> bool:
+    """Any CGST, SGST or IGST on the invoice (TCS and cess don't count)."""
+    tax = ctx.extraction.tax
+    return any(v != 0 for v in (tax.cgst, tax.sgst, tax.igst))
+
+
 @rule("T01_supplier_gstin", STAGE)
 def t01_supplier_gstin(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     ex = ctx.extraction
@@ -28,7 +34,18 @@ def t01_supplier_gstin(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     if value is None:
         if ex.supplier_name.value is None:
             return [e.skip("Supplier GSTIN", "No supplier details printed (reported above).")]
-        message = "The invoice doesn't show the supplier's GSTIN, so GST can't be claimed."
+        if not gst_charged(ctx):
+            return [
+                e.skip(
+                    "Supplier GSTIN",
+                    "No GSTIN and no GST charged: the supplier isn't GST-registered in India "
+                    "(a small or foreign supplier), so there is no input tax credit to claim.",
+                )
+            ]
+        message = (
+            "The invoice charges GST but doesn't show the supplier's GSTIN, so that GST can't "
+            "be claimed."
+        )
     elif gstin_util.validate(value):
         return [e.passed("Supplier GSTIN is valid", f"GSTIN {value} passes the checksum.")]
     else:
@@ -54,6 +71,14 @@ def t02_buyer_gstin(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     evidence = {"expected": ours, "actual": actual}
     if actual == ours:
         return [e.passed("Billed to our GSTIN", f"Buyer GSTIN {ours} is ours.", evidence)]
+    if not gst_charged(ctx):
+        return [
+            e.skip(
+                "Billed to our GSTIN",
+                "No GST charged, so our GSTIN isn't needed on this bill for input tax credit.",
+                evidence,
+            )
+        ]
     what = f"shows buyer GSTIN {actual}" if actual else "doesn't show our GSTIN"
     return [
         e.fail(

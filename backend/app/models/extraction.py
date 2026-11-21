@@ -166,6 +166,10 @@ class InvoiceExtraction(Model):
     bank_name: FieldValue
     annotations: list[str]
     meta: ExtractionMeta
+    # Found by code on the page (extract/invoice_refs.py): invoice numbers heading different
+    # pages (2+ means several invoices in one file) and numbers quoted as "against invoice".
+    invoices_in_file: list[str] = []
+    referenced_invoices: list[str] = []
 
     @model_validator(mode="before")
     @classmethod

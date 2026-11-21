@@ -27,13 +27,17 @@ def _manifest() -> dict[str, Any]:
     return load_manifest(world)
 
 
+GROUPS = {"inbox": "scenario", "stress": "stress"}
+
+
 def _inbox(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {k: v for k, v in manifest["documents"].items() if v["kind"] == "inbox"}
+    """Demo scenarios (S01–S15) and the unseen stress documents (U01–U10)."""
+    return {k: v for k, v in manifest["documents"].items() if v["kind"] in GROUPS}
 
 
 @router.post("/demo/runs/{doc_id}", status_code=202, response_model=RunCreated)
 def create_demo_run(
-    doc_id: Annotated[str, Path(pattern=r"^S\d{2}$")],
+    doc_id: Annotated[str, Path(pattern=r"^[SU]\d{2}$")],
     body: Annotated[DemoRunRequest | None, Body()] = None,
 ) -> RunCreated:
     info = _inbox(_manifest()).get(doc_id)
@@ -85,6 +89,7 @@ def get_demo_inbox(db: DB) -> list[DemoInboxItem]:
                 tags=list(info.get("tags") or []),
                 is_edge_case=bool(info.get("edge_case")),
                 processed_run_ids=processed.get(doc_id, []),
+                group=GROUPS[info["kind"]],  # type: ignore[arg-type]
             )
         )
     items.sort(key=lambda i: i.received_at, reverse=True)

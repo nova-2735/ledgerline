@@ -26,7 +26,8 @@ export const sources = {
 
 export const reasons = {
   DOC_NOT_INVOICE: 'Document is not an invoice', DOC_PROFORMA: 'Proforma invoice', DOC_CREDIT_NOTE: 'Credit note',
-  DOC_UNREADABLE: 'Unreadable document', FIELD_MISSING_INVOICE_NUMBER: 'Missing invoice number',
+  DOC_UNREADABLE: 'Unreadable document', DOC_MULTIPLE_INVOICES: 'Several invoices in one file',
+  FIELD_MISSING_INVOICE_NUMBER: 'Missing invoice number',
   FIELD_MISSING_INVOICE_DATE: 'Missing invoice date', FIELD_MISSING_TOTAL: 'Missing invoice total',
   FIELD_MISSING_SUPPLIER: 'Missing supplier name', FIELD_LOW_CONFIDENCE: 'Invoice fields need verification',
   MATH_LINE_MISMATCH: 'Line amount does not add up', MATH_SUBTOTAL_MISMATCH: 'Subtotal does not add up',

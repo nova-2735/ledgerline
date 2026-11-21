@@ -49,7 +49,7 @@ from app.models.extraction import InvoiceExtraction
 from app.orm import InvoiceLedgerRow, ReviewActionRow, RunRow
 from app.reference.ledger import BilledLine, Ledger, LedgerEntry
 from app.reference.purchase_orders import get_po
-from app.rules.base import ReviewOverrides, decimal_value, q2, text_value
+from app.rules.base import ReviewOverrides, decimal_value, money_currency, q2, text_value
 from app.rules.registry import STAGES as RULE_STAGES
 
 from .events import emit
@@ -376,7 +376,8 @@ def _run_from(state: RunState, start: StageName) -> None:
     current = start
     # From the first rule stage until the outcome is committed, hold the ledger lock: the rules
     # read PO balances and duplicate history, and the outcome writes billing.
-    with ExitStack() as held:
+    currency = state.extraction.currency if state.extraction is not None else "INR"
+    with ExitStack() as held, money_currency(currency):
         try:
             for name in STAGE_ORDER:
                 current = name

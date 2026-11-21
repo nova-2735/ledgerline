@@ -136,3 +136,16 @@ once per read; SQLite `synchronous=NORMAL` in WAL mode. Measurements are in `doc
 **Trade-off.** The warm-up spends CPU right after boot, competing with the first requests on a
 tiny instance. With `synchronous=NORMAL` an OS crash or power cut can lose the last few commits
 (never corrupt the database); an app crash loses nothing.
+
+## 15. Unseen documents as a standing test
+
+**Context.** Fifteen scenarios drawn with four templates say little about invoices the system
+hasn't seen.
+**Decision.** Ten deliberately different documents (two pages, sideways scan, phone photo,
+unregistered trader, USD invoice, credit note, e-invoice, discount and TCS, two invoices in one
+file, delivery challan) ship with the demo world, with ground truth and an expected outcome.
+They run offline in the tests and live in `docs/ROBUSTNESS.md`. The fixes they drove stay in
+code, not in the prompt: the model's job is unchanged, and every new behaviour (several invoices
+in one file, a bill without a heading, a foreign currency) is decided from printed strings.
+**Trade-off.** The pack is still synthetic, and a handful of documents can only show that each
+kind of difference is handled, not how often real files differ in that way.

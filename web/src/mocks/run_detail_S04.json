@@ -568,6 +568,8 @@
       "total_tax": "6606.00"
     },
     "prices_include_tax": false,
+    "invoices_in_file": [],
+    "referenced_invoices": [],
     "annotations": [
       "Recd OK"
     ],

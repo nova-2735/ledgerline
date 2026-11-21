@@ -14,7 +14,8 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from app.demo.money import format_indian
-from app.enums import ActionType, ReasonCode, Route
+from app.enums import ActionType, DocType, ReasonCode, Route
+from app.extract.normalize import canonical_invoice_number
 from app.models.checks import CheckResult
 from app.models.decision import Handoff
 from app.models.extraction import InvoiceExtraction
@@ -318,6 +319,74 @@ def _none(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]
     return {}
 
 
+_OUTCOME_WORDS = {"APPROVE": "approved", "REJECT": "rejected", "HOLD": "on hold"}
+
+
+def _adjustment_note(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    """Credit or debit note: which invoice it adjusts, and whether we have that invoice."""
+    debit = f.extraction.doc_type == DocType.debit_note
+    refs = f.extraction.referenced_invoices
+    clause = link = ""
+    if refs:
+        ref = refs[0]
+        canon = canonical_invoice_number(ref)
+        rows = f.ctx.ledger_rows if f.ctx is not None else []
+        row = next((r for r in rows if r.invoice_number_canonical == canon), None)
+        if row is not None:
+            status = _OUTCOME_WORDS.get(row.final_outcome.value if row.final_outcome else "", "")
+            status = status or "still open"
+            clause = f" against invoice {ref} ({row.display_id or f'run {row.run_id}'}, {status})"
+        else:
+            clause = f" against invoice {ref}, which we have no record of"
+        link = f" and link it to invoice {ref}"
+    owner = f"{f.vendor_name}'" if f.vendor_name.endswith("s") else f"{f.vendor_name}'s"
+    if debit:
+        ask = "Was this extra charge agreed?"
+        todo = (
+            "Check the extra charge of {total} with the buyer before it is paid{link}; it isn't "
+            "matched to a PO automatically."
+        )
+    else:
+        ask = "Record it against their account instead of paying it?"
+        todo = (
+            "Don't pay this. Book the credit of {total} to {owner} account so it reduces "
+            "their next payment{link}, then close it here."
+        )
+    return {
+        "note_kind": "debit note" if debit else "credit note",
+        "original_clause": clause,
+        "ask": ask,
+        "todo": todo.format(total=inr(f.total), owner=owner, link=link),
+    }
+
+
+def _not_invoice(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    title = (f.extraction.meta.raw.document_title or "").strip()
+    kind = title.lower() if title else "document"
+    po = text_value(f.extraction.po_reference)
+    if "challan" in kind or "delivery" in kind:
+        next_step = (
+            "If the goods have arrived, receiving can use it to record the goods receipt; the "
+            "tax invoice should follow separately."
+        )
+    else:
+        next_step = "File it with the vendor's records and ask for the tax invoice if one is due."
+    return {
+        "doc_kind": kind,
+        "po_clause": f" for {po}" if po else "",
+        "next_step": next_step,
+    }
+
+
+def _multiple(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    found = [str(x) for x in c.evidence.get("invoices") or []]
+    return {"n": len(found), "numbers": " and ".join(", ".join(found).rsplit(", ", 1))}
+
+
+def _currency(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    return {"currency": c.evidence.get("actual") or f.extraction.currency}
+
+
 def _posting_gaps(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
     return {"gaps": "; ".join(c.evidence.get("gaps") or []) or "some values are missing"}
 
@@ -481,6 +550,35 @@ TEMPLATES: dict[ReasonCode, Template] = {
         "Correct the missing values from the document, or return the invoice to the vendor.",
         (A.correct_fields, A.send_to_vendor, A.reject),
         _posting_gaps,
+    ),
+    C.DOC_CREDIT_NOTE: Template(
+        "{vendor} sent a {note_kind} ({number}) for {total}{original_clause}. {ask}",
+        "{todo}",
+        (A.reject,),
+        _adjustment_note,
+    ),
+    C.DOC_NOT_INVOICE: Template(
+        "This is a {doc_kind} from {supplier_name}{po_clause}, not an invoice, so there is "
+        "nothing to pay. Keep it out of the payment queue?",
+        "Nothing to pay. {next_step}",
+        (A.reopen,),
+        _not_invoice,
+    ),
+    C.DOC_MULTIPLE_INVOICES: Template(
+        "This file from {supplier_name} holds {n} invoices ({numbers}). Split it and send each "
+        "invoice through on its own?",
+        "Save each invoice as its own PDF and upload them separately, then reject this combined "
+        "file so nothing is paid from it twice.",
+        (A.reject,),
+        _multiple,
+    ),
+    C.CURRENCY_MISMATCH: Template(
+        "{vendor} billed {total} in {currency}, but we book and pay in INR. Has finance agreed "
+        "the exchange rate and any reverse-charge GST?",
+        "Finance should confirm the INR amount and the reverse-charge GST before this is booked; "
+        "otherwise ask {vendor} to bill in INR.",
+        (A.send_to_vendor, A.reject),
+        _currency,
     ),
     C.DOC_PROFORMA: Template(
         _VENDOR_Q,

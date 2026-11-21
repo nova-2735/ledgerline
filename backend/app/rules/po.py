@@ -186,10 +186,24 @@ def p04_status(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
 @rule("P05_currency_date", STAGE)
 def p05_currency_date(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     po = ctx.po
+    currency = ctx.extraction.currency
     if po is None:
+        if currency != "INR":
+            return [
+                e.fail(
+                    ReasonCode.CURRENCY_MISMATCH,
+                    f"Invoice is in {currency}, not INR",
+                    f"The invoice is billed in {currency}. Payments and POs are in INR, so "
+                    "finance has to agree the exchange rate and any reverse-charge GST before "
+                    "it can be booked.",
+                    severity=Severity.medium,
+                    route=Route.ap_clerk,
+                    hint=Outcome.HOLD,
+                    evidence={"expected": "INR", "actual": currency},
+                )
+            ]
         return [e.skip("Currency and PO date", "No PO resolved.")]
     out = []
-    currency = ctx.extraction.currency
     if currency != po.currency:
         out.append(
             e.fail(

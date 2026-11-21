@@ -592,6 +592,8 @@
       "total_tax": "8010.00"
     },
     "prices_include_tax": false,
+    "invoices_in_file": [],
+    "referenced_invoices": [],
     "annotations": [
       "Please note our bank details have changed."
     ],

@@ -553,6 +553,8 @@
       "total_tax": "17748.00"
     },
     "prices_include_tax": false,
+    "invoices_in_file": [],
+    "referenced_invoices": [],
     "annotations": [],
     "line_items": [
       {

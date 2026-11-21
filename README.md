@@ -46,7 +46,9 @@ On the 15 demo scenarios with fresh Gemini readings (`gemini-3.5-flash-lite`):
 | Invoice fields read correctly | **237 / 237** (incl. 33 / 33 on the two scanned invoices) |
 | Model reading time per invoice | about 3 s (p50 2.8 s, p95 3.7 s) |
 
-Details, method and caveats: [docs/EVAL.md](docs/EVAL.md).
+Details, method and caveats: [docs/EVAL.md](docs/EVAL.md). Ten unseen, deliberately different
+documents (sideways scan, phone photo, USD invoice, credit note, two invoices in one PDF and
+more) are in the demo inbox as the stress group: [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md).
 
 ## Four edge cases worth looking at
 
@@ -113,7 +115,8 @@ scripts/         smoke test for a deployment
 ```
 
 More: [architecture](docs/ARCHITECTURE.md) · [design decisions](docs/DECISIONS.md) ·
-[assumptions](docs/ASSUMPTIONS.md) · [evaluation](docs/EVAL.md).
+[assumptions](docs/ASSUMPTIONS.md) · [evaluation](docs/EVAL.md) ·
+[robustness](docs/ROBUSTNESS.md) · [performance](docs/PERFORMANCE.md).
 
 ## Limitations and next steps
 

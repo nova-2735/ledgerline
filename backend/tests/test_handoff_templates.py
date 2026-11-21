@@ -89,6 +89,12 @@ CASES: dict[ReasonCode, tuple[dict[str, Any], list[str]]] = {
         ["the amount of invoice line 2 couldn't be read"],
     ),
     C.DOC_PROFORMA: ({}, ["tax invoice"]),
+    C.DOC_CREDIT_NOTE: ({}, ["credit note", "₹1,16,348.00", "next payment"]),
+    C.DOC_NOT_INVOICE: ({}, ["not an invoice", "nothing to pay"]),
+    C.DOC_MULTIPLE_INVOICES: (
+        {"invoices": ["RSE/0466", "RSE/0467"]}, ["2 invoices", "RSE/0466 and RSE/0467"]
+    ),
+    C.CURRENCY_MISMATCH: ({"expected": "INR", "actual": "USD"}, ["USD", "exchange rate"]),
 }  # fmt: skip
 
 

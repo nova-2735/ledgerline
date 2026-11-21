@@ -25,11 +25,13 @@ from app.models.extraction import (
 
 from . import confidence
 from .grounding import Grounder, GroundResult, union_bbox
+from .invoice_refs import invoices_in_file, printed_numbers, referenced_invoices
 from .normalize import (
     bank_account_valid,
     canonical_invoice_number,
     canonical_po,
     currency_code,
+    currency_in,
     ifsc_valid,
     invoice_number_valid,
     normalize_account,
@@ -260,7 +262,11 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
     account_ground = g.text(account) if account else GroundResult("none")
     if account and not account_ground.found:
         account_ground = g.text(raw.bank_account_number)
-    bank_ok = bank_account_valid(account) and ifsc_valid(ifsc)
+    currency = currency_code(raw.currency or currency_in(raw.total) or currency_in(raw.subtotal))
+    # Foreign banks have no IFSC (they quote SWIFT or routing codes): check the account alone.
+    bank_ok = bank_account_valid(account) and (
+        ifsc_valid(ifsc) or (ifsc is None and currency != "INR")
+    )
 
     words_field = _field(
         raw.amount_in_words,
@@ -270,6 +276,7 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         [] if words_value is not None or not raw.amount_in_words else ["could not read the words"],
     )
 
+    printed = printed_numbers(doc)
     return InvoiceExtraction(
         doc_type=raw.document_type,
         doc_kind=doc.doc_kind,
@@ -286,7 +293,7 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         place_of_supply=text_field(raw.place_of_supply),
         po_reference=text_field(raw.po_reference),
         po_reference_canonical=canonical_po(raw.po_reference),
-        currency=currency_code(raw.currency),
+        currency=currency,
         line_items=lines,
         subtotal=amount_field(raw.subtotal, ["arithmetic"] if subtotal_ok else []),
         tax=tax,
@@ -304,6 +311,8 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         bank_name=text_field(raw.bank_name),
         annotations=list(raw.annotations),
         meta=meta,
+        invoices_in_file=invoices_in_file(printed),
+        referenced_invoices=referenced_invoices(printed),
     )
 
 

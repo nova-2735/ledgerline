@@ -32,9 +32,10 @@ from .invoice import (
 from .scanify import scanify
 from .templates import get_template
 from .templates.base import rupee_available, rupee_font
+from .unseen import generate_unseen
 
 SEED = 42
-OUTPUT_DIRS = ("reference", "inbox", "history", "truth")
+OUTPUT_DIRS = ("reference", "inbox", "history", "truth", "unseen")
 
 
 def _sha256(data: bytes) -> str:
@@ -234,6 +235,7 @@ def generate(out: Path) -> dict[str, Any]:
                 "expected": spec.meta.get("expected"),
             }
         )
+    documents.update(generate_unseen(out, index))
     _write_json(out / "truth" / "index.json", index)
     manifest = {
         "seed": SEED,
@@ -255,8 +257,11 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out or get_settings().data_dir / "demo"
     manifest = generate(out)
     docs = manifest["documents"]
-    inbox = sum(1 for d in docs.values() if d["kind"] == "inbox")
-    print(f"Wrote {inbox} inbox and {len(docs) - inbox} history documents to {out}")
+    kinds = [d["kind"] for d in docs.values()]
+    print(
+        f"Wrote {kinds.count('inbox')} inbox, {kinds.count('history')} history and "
+        f"{kinds.count('stress')} stress documents to {out}"
+    )
     return 0
 
 

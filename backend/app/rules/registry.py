@@ -21,7 +21,14 @@ STAGE_RULES: dict[StageName, list[Rule]] = {
     StageName.check_duplicates: duplicates.RULES,
 }
 STAGES = list(STAGE_RULES)
-STOPPING_CODES = frozenset({ReasonCode.DOC_NOT_INVOICE, ReasonCode.DOC_UNREADABLE})
+STOPPING_CODES = frozenset(
+    {ReasonCode.DOC_NOT_INVOICE, ReasonCode.DOC_UNREADABLE, ReasonCode.DOC_MULTIPLE_INVOICES}
+)
+# A credit or debit note adjusts an earlier invoice: it is booked against the vendor's account,
+# not matched to a purchase order, so only the PO and line-matching stages are skipped.
+PARTIAL_SKIPS: dict[ReasonCode, tuple[StageName, ...]] = {
+    ReasonCode.DOC_CREDIT_NOTE: (StageName.resolve_po, StageName.match_lines),
+}
 
 
 def all_rules() -> list[Rule]:
@@ -49,20 +56,37 @@ def skipped_stage(stage: StageName, reason: str) -> list[CheckResult]:
 def skip_reason_for(code: ReasonCode) -> str:
     if code == ReasonCode.DOC_UNREADABLE:
         return "Skipped: the document can't be read."
+    if code == ReasonCode.DOC_MULTIPLE_INVOICES:
+        return "Skipped: the file holds more than one invoice; each must be processed on its own."
+    if code == ReasonCode.DOC_CREDIT_NOTE:
+        return "Skipped: a credit or debit note is applied to the vendor's account, not to a PO."
     return "Skipped: the document is not an invoice."
+
+
+def skips_after(results: list[CheckResult]) -> dict[StageName, str]:
+    """Later stages to skip, with the reason, given the `validate_document` results."""
+    stop = stops_pipeline(results)
+    if stop is not None:
+        return {s: skip_reason_for(stop) for s in STAGES[1:]}
+    out: dict[StageName, str] = {}
+    for r in results:
+        if r.status == CheckStatus.fail and not r.resolved_by_review and r.code in PARTIAL_SKIPS:
+            for stage in PARTIAL_SKIPS[r.code]:
+                out[stage] = skip_reason_for(r.code)
+    return out
 
 
 def run_all(ctx: RuleContext) -> dict[StageName, list[CheckResult]]:
     """Results per stage, in pipeline order."""
     results: dict[StageName, list[CheckResult]] = {}
-    stopped: ReasonCode | None = None
+    skips: dict[StageName, str] = {}
     for stage in STAGES:
-        if stopped is not None:
-            results[stage] = skipped_stage(stage, skip_reason_for(stopped))
+        if stage in skips:
+            results[stage] = skipped_stage(stage, skips[stage])
             continue
         results[stage] = run_stage(stage, ctx)
         if stage == StageName.validate_document:
-            stopped = stops_pipeline(results[stage])
+            skips = skips_after(results[stage])
     return results
 
 

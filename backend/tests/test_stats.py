@@ -72,7 +72,8 @@ def test_vendors_and_purchase_orders(api: TestClient) -> None:
 
 def test_demo_inbox(api: TestClient) -> None:
     inbox = api.get("/api/demo/inbox").json()
-    assert len(inbox) == 15
+    groups = [i["group"] for i in inbox]
+    assert (groups.count("scenario"), groups.count("stress")) == (15, 10)
     s04 = next(i for i in inbox if i["doc_id"] == "S04")
     assert s04["is_edge_case"] and s04["subject"] == "bill" and s04["processed_run_ids"] == []
     run_id = api.post("/api/demo/runs/S04").json()["run_id"]

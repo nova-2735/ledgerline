@@ -6,7 +6,9 @@ Rules are pure functions of the context: they never read the database, the netwo
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -17,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.decide.policy import Policy
-from app.demo.money import format_indian
+from app.demo.money import format_indian, format_western
 from app.enums import CheckStatus, Outcome, ReasonCode, Route, Severity, StageName
 from app.llm.base import LLMClient
 from app.models.checks import CheckResult, POCandidate
@@ -143,11 +145,32 @@ def q2(value: Decimal) -> Decimal:
     return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
+# The currency amounts in messages are written in: the invoice's own (₹ unless it says otherwise).
+# Set per run by `build_context`; `money_currency` scopes it so it can't leak between runs.
+_MONEY_CURRENCY: ContextVar[str] = ContextVar("money_currency", default="INR")
+
+
+@contextmanager
+def money_currency(code: str | None = "INR") -> Iterator[None]:
+    token = _MONEY_CURRENCY.set(code or "INR")
+    try:
+        yield
+    finally:
+        _MONEY_CURRENCY.reset(token)
+
+
+def set_money_currency(code: str | None) -> None:
+    _MONEY_CURRENCY.set(code or "INR")
+
+
 def inr(value: Decimal | None) -> str:
-    """₹1,16,348.00 (Indian grouping)."""
+    """An amount in the run's currency: ₹1,16,348.00 (Indian grouping) or USD 5,212.50."""
     if value is None:
         return "—"
-    return f"₹{format_indian(q2(value))}"
+    code = _MONEY_CURRENCY.get()
+    if code == "INR":
+        return f"₹{format_indian(q2(value))}"
+    return f"{code} {format_western(q2(value))}"
 
 
 def qty(value: Decimal | None) -> str:
@@ -336,6 +359,7 @@ def build_context(
     """Look up everything the rules need: vendor, PO (printed, inferred or confirmed), balances,
     goods receipts and comparable ledger rows."""
     overrides = overrides or ReviewOverrides()
+    set_money_currency(extraction.currency)
     company_row = session.get(CompanyRow, 1)
     if company_row is None:
         raise LookupError("reference data is not loaded")
