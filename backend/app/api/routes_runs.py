@@ -17,6 +17,7 @@ from app.api.views import run_detail, run_summary, vendor_names
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.enums import Outcome, Route, RunSource, RunStatus
+from app.export.audit_pdf import audit_pdf
 from app.ingest.reader import IntakeError
 from app.ingest.render import render_page_png
 from app.ingest.storage import ensure_file
@@ -206,6 +207,24 @@ def get_run_page(
     ensure_file(doc.sha256, doc.bytes)
     path = render_page_png(doc.sha256, n - 1, max(scale, 0.25))
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+
+
+@router.get(
+    "/runs/{run_id}/audit.pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "Audit record (PDF)"}},
+)
+def get_run_audit_pdf(run_id: int, db: DB, code: str | None = None) -> Response:
+    """One-page summary (decision, key numbers, next step), then checks, extracted fields, stage
+    timeline, review actions and decision history."""
+    run = get_run_row(db, run_id)
+    detail = run_detail(db, run)
+    pdf = audit_pdf(detail, events_after(db, run_id, 0))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{detail.display_id}-audit.pdf"'},
+    )
 
 
 @router.get("/runs/{run_id}/audit", response_model=AuditExport)

@@ -13,8 +13,8 @@ from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.api import ErrorResponse
 
-# EventSource, <img> and <iframe> can't send headers, so these accept `?code=` instead.
-QUERY_CODE_SUFFIXES = ("/events", "/document", ".png")
+# EventSource, <img>, <iframe> and download links can't send headers, so these accept `?code=`.
+QUERY_CODE_SUFFIXES = ("/events", "/document", ".png", ".pdf")
 
 
 class APIError(Exception):
