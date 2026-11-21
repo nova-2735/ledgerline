@@ -126,7 +126,7 @@ def raw_from(bill: Bill) -> dict[str, Any]:
     raw = RawInvoice(
         document_type=bill.doc_type,  # type: ignore[arg-type]
         document_title=bill.title,
-        invoice_number=bill.number,
+        invoice_number=bill.number if bill.priced else None,  # a challan number is not one
         invoice_date=bill.date,
         due_date=bill.due_date,
         supplier_name=bill.supplier.name,
@@ -1302,7 +1302,7 @@ STRESS: tuple[StressDoc, ...] = (
         "28 line items over two pages; the totals, tax and bank details are only on page 2",
         ("stress", "multi-page", "digital"),
         u01,
-        _exp("HOLD", "buyer", ["PO_NOT_FOUND"], ["LINE_NOT_ON_PO"]),
+        _exp("HOLD", "buyer", ["PO_NOT_FOUND"], ["LINE_NOT_ON_PO", "ROUND_OFF_APPLIED"]),
         ("Bharat Office Supplies", "sales@bharatoffice.example"),
         "Invoice BOS/2627/0602 (2 pages)",
         "2026-11-18T11:05:00+05:30",
@@ -1360,7 +1360,7 @@ STRESS: tuple[StressDoc, ...] = (
         "a credit note (not a bill) for damaged boxes, quoting the original invoice SPI/26-27/0198",
         ("stress", "credit-note"),
         u06,
-        _exp("HOLD", "ap_clerk", ["DOC_CREDIT_NOTE"]),
+        _exp("HOLD", "ap_clerk", ["DOC_CREDIT_NOTE"], ["ROUND_OFF_APPLIED"]),
         ("Sharma Packaging Accounts", "accounts@sharmapackaging.example"),
         "Credit note SPI/CN/26-27/012",
         "2026-11-16T12:15:00+05:30",
@@ -1384,7 +1384,7 @@ STRESS: tuple[StressDoc, ...] = (
         "value and TCS at 0.1% on top of GST",
         ("stress", "discount", "tcs"),
         u08,
-        _exp("HOLD", "buyer", ["PO_NOT_FOUND"]),
+        _exp("HOLD", "buyer", ["PO_NOT_FOUND"], ["ROUND_OFF_APPLIED"]),
         ("Sharma Packaging Accounts", "accounts@sharmapackaging.example"),
         "Invoice SPI/26-27/0247",
         "2026-11-17T10:25:00+05:30",

@@ -8,12 +8,13 @@ UV_RUN := cd $(BACKEND) && uv run
 .DEFAULT_GOAL := help
 
 .PHONY: help setup dev dev-api dev-web lint typecheck test web-build check \
-	generate seed reset openapi types models extract eval eval-live \
+	generate seed reset openapi types models extract eval eval-live eval-stress eval-stress-live \
 	docker-build docker-run smoke
 
 help:
 	@echo "Targets: setup dev dev-api dev-web lint test check generate seed reset"
-	@echo "         openapi types models extract eval eval-live docker-build docker-run smoke"
+	@echo "         openapi types models extract eval eval-live eval-stress eval-stress-live"
+	@echo "         docker-build docker-run smoke"
 
 setup:
 	cd $(BACKEND) && uv sync
@@ -75,6 +76,12 @@ eval:
 
 eval-live:
 	$(UV_RUN) python -m app.eval --provider gemini --force-fresh --out "$(CURDIR)/reports/eval_live.md"
+
+eval-stress:
+	$(UV_RUN) python -m app.eval --provider fake --stress --gate --out "$(CURDIR)/reports/eval_stress_fake.md"
+
+eval-stress-live:
+	$(UV_RUN) python -m app.eval --provider gemini --stress --force-fresh --out "$(CURDIR)/reports/eval_stress_live.md"
 
 IMAGE ?= ledgerline
 BASE_URL ?= http://localhost:8000

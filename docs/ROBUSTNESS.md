@@ -14,7 +14,9 @@ scenarios, so running them never changes S01–S15.
 
 Run on 21 Nov 2026 with `gemini-3.5-flash-lite`, fresh readings, Tesseract on, each document
 from a freshly seeded database. All ten end where expected; the offline test suite checks the
-same outcomes with the ground-truth reader (`backend/tests/test_robustness.py`).
+same outcomes with the ground-truth reader (`backend/tests/test_robustness.py`). The pack is also
+part of the evaluation: `make eval-stress-live` gives 10 / 10 decisions and 249 / 249 fields read
+correctly (`make eval-stress` is the offline gate); see [EVAL.md](EVAL.md).
 
 | Doc | What's unusual | Outcome | Reason | What the system did |
 |---|---|---|---|---|
