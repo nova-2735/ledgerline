@@ -129,7 +129,8 @@ def t03_tax_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             e.fail(
                 ReasonCode.TAX_TYPE_MISMATCH,
                 "Wrong type of GST",
-                f"Only {present} was charged. Supplier and buyer are both in state {buyer_state}, "
+                f"Only {present} was charged. Supplier and buyer are both in "
+                f"{gstin_util.state_name(buyer_state)}, "
                 f"so the invoice must show both CGST and SGST; without {missing} the tax "
                 "can't be claimed in full as input tax credit. Ask the vendor for a corrected "
                 "invoice.",
@@ -153,15 +154,17 @@ def t03_tax_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             expected_split[str(rate)] = str(half)
         should = "; ".join(parts) or "CGST + SGST"
         message = (
-            f"IGST {inr(tax.igst)} was charged, but supplier and buyer are both in state "
-            f"{buyer_state}, so it should be {should}. IGST charged on a supply within the state "
+            f"IGST {inr(tax.igst)} was charged, but supplier and buyer are both in "
+            f"{gstin_util.state_name(buyer_state)}, so it should be {should}. IGST charged on a "
+            "supply within the state "
             "can't be claimed as input tax credit. Ask the vendor for a corrected invoice."
         )
         evidence["expected_cgst_sgst_each"] = expected_split
     else:
         message = (
-            f"CGST/SGST was charged, but the supplier (state {supplier_state}) and buyer "
-            f"(state {buyer_state}) are in different states, so it should be IGST. "
+            "CGST/SGST was charged, but the supplier is in "
+            f"{gstin_util.state_name(supplier_state)} and the buyer in "
+            f"{gstin_util.state_name(buyer_state)}, so it should be IGST. "
             "This tax can't be claimed as input tax credit. Ask the vendor for a corrected invoice."
         )
     return [

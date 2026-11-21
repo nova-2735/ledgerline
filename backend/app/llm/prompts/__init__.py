@@ -24,8 +24,19 @@ class Prompt:
         return f"{self.id}@{self.version}"
 
 
+def latest_version(prompt_id: str) -> str:
+    """The highest `vN` among `<prompt_id>.vN.md` files."""
+    versions = [int(p.stem.rsplit(".v", 1)[1]) for p in PROMPTS_DIR.glob(f"{prompt_id}.v*.md")]
+    if not versions:
+        raise FileNotFoundError(f"no prompt files for {prompt_id}")
+    return f"v{max(versions)}"
+
+
 @lru_cache
-def load_prompt(prompt_id: str, version: str = "v1") -> Prompt:
+def load_prompt(prompt_id: str, version: str | None = None) -> Prompt:
+    """A prompt by id; the latest version unless one is named. Older versions stay on disk so
+    stored runs keep pointing at the text that produced them."""
+    version = version or latest_version(prompt_id)
     raw = (PROMPTS_DIR / f"{prompt_id}.{version}.md").read_text(encoding="utf-8")
     if not raw.startswith("---"):
         raise ValueError(f"prompt {prompt_id}.{version} has no front matter")

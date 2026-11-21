@@ -26,18 +26,18 @@ CASES: dict[ReasonCode, tuple[dict[str, Any], list[str]]] = {
         {"po_number": "KF-PO-0142",
          "candidates": [{"po_number": "KF-PO-0142", "score": 0.9635},
                         {"po_number": "KF-PO-0150", "score": 0.3}]},
-        ["KF-PO-0142", "Vikram Shetty", "28 Oct 2026", "2 open POs", "0.96"],
+        ["KF-PO-0142", "Vikram Shetty", "28 Oct 2026", "2 open POs", "96%", "₹1,16,348.00"],
     ),
     C.PO_AMBIGUOUS: (
         {"candidates": [{"po_number": "KF-PO-0142", "score": 0.8},
                         {"po_number": "KF-PO-0150", "score": 0.78}]},
         ["KF-PO-0142", "KF-PO-0150"],
     ),
-    C.PO_MISSING: ({"candidates": []}, ["the buyer"]),
-    C.PO_NOT_FOUND: ({"candidates": []}, ["the buyer"]),
+    C.PO_MISSING: ({"candidates": []}, ["the buyer", "₹1,16,348.00", "names no PO"]),
+    C.PO_NOT_FOUND: ({"candidates": []}, ["the buyer", "₹1,16,348.00", "KF-PO-0142"]),
     C.QTY_EXCEEDS_PO_REMAINING: (
         {"po_number": "KF-PO-0142", "line_no": 1, "expected": "1500", "actual": "2000"},
-        ["2000 Nos", "line 1", "1500 remain", "₹68,145.00", "credit note for 500"],
+        ["2000 Nos", "line 1", "1500 remain", "₹68,145.00", "credit note for the other 500"],
     ),
     C.QTY_EXCEEDS_RECEIVED: (
         {"po_number": "KF-PO-0142", "line_no": 2, "received": "250"}, ["line 2", "250 received"]
@@ -76,14 +76,14 @@ CASES: dict[ReasonCode, tuple[dict[str, Any], list[str]]] = {
          "original_total": "68145.00"},
         ["SPI/26-27/0188", "03 Oct 2026", "₹68,145.00"],
     ),
-    C.VENDOR_NOT_FOUND: ({}, ["Sharma Packaging Industries"]),
+    C.VENDOR_NOT_FOUND: ({}, ["Sharma Packaging Industries", "₹1,16,348.00", "Procurement"]),
     C.VENDOR_BLOCKED: ({"block_reason": "Failed food-safety audit"}, ["Failed food-safety audit"]),
     C.FIELD_LOW_CONFIDENCE: (
         {"fields": [{"field": "total", "label": "total"}, {"field": "invoice_date",
                                                          "label": "invoice date"}]},
-        ["total, invoice date"],
+        ["total and invoice date", "₹1,16,348.00", "AP clerk"],
     ),
-    C.APPROVAL_LIMIT_EXCEEDED: ({}, ["₹1,16,348.00", "₹5,00,000.00"]),
+    C.APPROVAL_LIMIT_EXCEEDED: ({}, ["₹1,16,348.00", "₹5,00,000.00", "finance controller"]),
     C.POSTING_INCOMPLETE: (
         {"gaps": ["the amount of invoice line 2 couldn't be read"]},
         ["the amount of invoice line 2 couldn't be read"],
@@ -159,7 +159,8 @@ def test_s03_partial_amount() -> None:
     h = build_handoff(check, [check], facts, Route.buyer).handoff
     assert "only 40 remain on the PO and 30 are received and unbilled" in h.question
     assert h.suggested_action == (
-        "Approve 30 Box (₹51,330.00 incl. tax) and request a credit note for 20."
+        "The buyer can approve 30 Box (₹51,330.00 incl. tax) and ask Apex Industrial Supplies "
+        "for a credit note for the other 20."
     )
 
 

@@ -78,7 +78,11 @@ def internal_note(plan: HandoffPlan, facts: Facts) -> Message | None:
     elif owner == Route.buyer and facts.vendor is None:
         to = "Procurement"
     h = plan.handoff
-    risk = f" Amount at risk: {inr(h.amount_at_risk)}." if h.amount_at_risk is not None else ""
+    risk = (
+        f" Amount at risk: {inr(h.amount_at_risk)}."
+        if h.amount_at_risk is not None
+        else f" Invoice total: {inr(facts.total)}."
+    )
     body = f"{h.question}\n\nSuggested: {h.suggested_action}{risk}"
     return Message(
         to=to,

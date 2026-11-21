@@ -61,7 +61,7 @@ def test_s03_partial_payment_suggestion(seeded_world: SeededWorld) -> None:
     d, _ = decide_doc(seeded_world, "S03")
     assert d.handoff is not None
     assert "₹51,330.00" in d.handoff.suggested_action
-    assert "credit note for 20" in d.handoff.suggested_action
+    assert "credit note for the other 20" in d.handoff.suggested_action
     assert d.handoff.amount_at_risk == Decimal("34220.00")
     assert d.explanation.vendor_message is not None
     assert d.explanation.vendor_message.to == "ar@apexindustrial.example"
@@ -125,3 +125,18 @@ def test_s12_policy_what_if(seeded_world: SeededWorld) -> None:
     assert result.decision.outcome.value == exp["outcome"]
     assert result.decision.policy_version == relaxed.policy_version
     assert ctx.policy == load_policy()  # the stored context is untouched
+
+
+OWNERS = ("AP clerk", "buyer", "receiving team", "Treasury", "Procurement", "finance controller")
+
+
+@pytest.mark.parametrize("doc_id", INBOX)
+def test_every_hold_names_the_amount_and_who_acts(seeded_world: SeededWorld, doc_id: str) -> None:
+    d, _ = decide_doc(seeded_world, doc_id)
+    if d.outcome != Outcome.HOLD:
+        return
+    assert d.handoff is not None
+    assert "₹" in d.handoff.question, d.handoff.question
+    action = d.handoff.suggested_action
+    assert any(owner.lower() in action.lower() for owner in OWNERS), action
+    assert "{" not in d.handoff.question + action

@@ -122,20 +122,29 @@ def d01_doc_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             e.fail(
                 ReasonCode.DOC_CREDIT_NOTE,
                 f"Document is a {label}",
-                f"This is a {label}, not an invoice. An AP clerk needs to match it to the "
-                "original invoice.",
+                "This is a credit note: it lowers what we owe the vendor, so it is booked "
+                "against their account, not paid."
+                if kind == DocType.credit_note
+                else "This is a debit note: it adds a charge to an earlier invoice, so it is "
+                "checked against that invoice before anything is paid.",
                 severity=Severity.high,
                 route=Route.ap_clerk,
                 hint=Outcome.HOLD,
                 evidence=evidence,
             )
         ]
-    name = _DOC_NAMES.get(kind, "not an invoice")
+    title = (ex.meta.raw.document_title or "").strip()
+    name = _DOC_NAMES.get(kind) or (f"a {title.lower()}" if title else None)
+    text = (
+        f"This is {name}, not an invoice, so there is nothing to pay."
+        if name
+        else "This document isn't an invoice, so there is nothing to pay."
+    )
     return [
         e.fail(
             ReasonCode.DOC_NOT_INVOICE,
             "Not an invoice",
-            f"The document is {name}, so it can't be processed as an invoice.",
+            text,
             severity=Severity.high,
             route=Route.none,
             hint=Outcome.REJECT,
@@ -228,11 +237,12 @@ def d03_confidence(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
                 f"{round(threshold * 100)}% confidence.",
             )
         ]
-    listed = ", ".join(f"{f['label']} ({round(f['confidence'] * 100)}%)" for f in low)
+    listed = ", ".join(f"{f['label']} ({round(f['confidence'] * 100)}% sure)" for f in low)
     result = e.fail(
         ReasonCode.FIELD_LOW_CONFIDENCE,
         "Some key fields need a second look",
-        f"Not sure about: {listed}. Check them against the document before approving.",
+        f"These couldn't be confirmed on the page: {listed}. Check them against the document "
+        "before approving.",
         severity=Severity.medium,
         route=Route.ap_clerk,
         hint=Outcome.HOLD,

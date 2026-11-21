@@ -79,6 +79,8 @@ def test_stress_document_gets_a_sensible_decision(api: TestClient, doc_id: str) 
     handoff = decision["handoff"]
     assert handoff and handoff["question"] and handoff["suggested_action"]
     assert "{" not in handoff["question"] + handoff["suggested_action"]
+    if decision["outcome"] == "HOLD":  # the amount at stake, in the invoice's own currency
+        assert "₹" in handoff["question"] or "USD" in handoff["question"], handoff["question"]
 
 
 def test_inbox_lists_stress_documents_as_their_own_group(api: TestClient) -> None:
