@@ -52,10 +52,16 @@ Measured on a local server capped at 0.1 vCPU (method and full tables in
 | Scanned invoice (S04), wall | 52.1 s | 18.6 s |
 | Demo reset | 79.4 s | 0.4 to 0.7 s |
 
-On the deployed service itself, the last measurements are the ones reported before this round
-(S06 about 19 s end to end, reset about 87 s). The new numbers above have not yet been confirmed
-on Render: that needs this branch deployed and the access code for the smoke test
-(`make smoke BASE_URL=… ACCESS_CODE=…`, which now prints the reset timing).
+Measured on the deployed service (`make smoke`, version 0.2.0, fresh readings, 23 Nov 2026):
+
+| | Before | After |
+|---|---|---|
+| Demo reset | about 87 s | 0.4 s (0.1 s on the server) |
+| S01 (digital, approve), run | — | 4.1 to 9.2 s, mostly the two model calls |
+| S06 (digital, hold), run | about 19 s end to end | 4.2 to 5.5 s |
+| S04 (scan), run | — | 11.4 s, of which OCR 7.9 s (43.4 s before OCR was made single-threaded) |
+
+Details in [PERFORMANCE.md](PERFORMANCE.md).
 
 ## What failed and why
 

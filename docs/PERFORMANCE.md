@@ -39,6 +39,7 @@ only when the viewer asks for them, not inside the pipeline; polling `GET /runs/
 4. SQLite runs with `synchronous=NORMAL` in WAL mode: still safe against corruption and app
    crashes, without an fsync on every commit.
 5. Reset restores the seeded snapshot instead of reseeding (see DECISIONS §13).
+6. The image runs Tesseract single-threaded (`OMP_THREAD_LIMIT=1`), measured on Render below.
 
 ## Results
 
@@ -69,9 +70,25 @@ are scans.
 | Model client warm-up (background, at startup) | — | 22 to 25 s |
 
 What remains on a 0.1 vCPU instance is the model calls (about 3.3 s per run) and OCR on scans
-(about 14 s for S04). A run that hits a provider retry takes 1 to 2 s longer; the reported
+(about 14 s for S04 in this emulation, 8 s on Render once single-threaded). A run that hits a provider retry takes 1 to 2 s longer; the reported
 `latency_ms` covers the final attempt, and `attempts` shows the retries.
 
-### Live (Render)
+### Live (Render, 23 Nov 2026)
 
-The deployed service runs the code from `main`, so the "after" column needs this branch deployed.
+`make smoke` against the deployed service (free instance, 0.1 vCPU), version 0.2.0, fresh model
+readings (the cache is empty after a deploy), polish on. "Run" is the server-side duration from
+the first to the last stage; "wall" includes the polling of the smoke client.
+
+| Measurement | Before (0.1.0) | After (0.2.0) | After + single-threaded OCR |
+|---|---|---|---|
+| Demo reset, wall | about 87 s | 0.4 s (0.1 s on the server) | 0.4 s (0.1 s on the server) |
+| S01, run (wall) | — | 4.1 s (5.5 s) | 9.2 s (10.6 s) |
+| S06, run (wall) | about 19 s end to end | 4.2 s (5.9 s) | 5.5 s (7.2 s) |
+| S04 scan, run (wall) | — | 43.4 s (44.8 s) | 11.4 s (12.9 s) |
+| S04 `read_document` (OCR) | — | 39.0 s | 7.9 s |
+
+On Render the scan's OCR was much slower than in the local 0.1 vCPU emulation: Tesseract's
+OpenMP threads competed for the instance's CPU quota. Setting `OMP_THREAD_LIMIT=1` in the image
+cut it fivefold. The remaining differences between the two "after" runs are the model calls:
+S01's reading took 2.7 s and then 4.8 s, and its explanation rewording 0.9 s and then 3.6 s.
+Code and CPU account for well under a second of each digital run.
