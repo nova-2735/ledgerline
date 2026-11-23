@@ -1,6 +1,6 @@
 [project]
 name = "ledgerline"
-version = "0.1.0"
+version = "0.2.0"
 description = "Invoice-to-decision process for accounts payable."
 requires-python = ">=3.12,<3.13"
 dependencies = [
