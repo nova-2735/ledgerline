@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, RefreshCw } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -7,18 +7,21 @@ import { queryKeys, useAllRuns, useHealth, useQueue, useStats } from '@/api/hook
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
 import { KpiTile } from '@/components/KpiTile'
 import { PageActions } from '@/components/layout/PageActions'
-import { outcomeColors, StatusSquare } from '@/components/OutcomeBadge'
+import { StatusSquare } from '@/components/OutcomeBadge'
 import { Panel } from '@/components/Panel'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { RunsTable } from '@/components/RunsTable'
 import { Button } from '@/components/ui/button'
+import { ReviewDialogs } from '@/components/run/ReviewDialogs'
 import { actionLabel, actionShortcut, primaryReviewAction, reviewActions } from '@/components/run/reviewActions'
-import { age, dayBefore, dayOutcomes, greatestRisk, outcomeLabels, periodDelta, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
+import { age, dayBefore, greatestRisk, periodDelta, riskLabels, subtractPeriods, type Metric } from '@/lib/dashboard'
 import { duration, inr, istDate, pct } from '@/lib/format'
 import { reasons, routes } from '@/lib/labels'
 import { businessNow, dayOf, effectiveOutcome } from '@/lib/runList'
 import { shortcuts, useShortcuts, type Shortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+
+const Decisions = lazy(() => import('@/components/DecisionsChart'))
 
 type Day = Schemas['StatsDay']
 const periods = [['7D', 7, 'week'], ['30D', 30, 'month'], ['90D', 90, 'quarter'], ['All', 365, 'all']] as const
@@ -129,15 +132,29 @@ export function Dashboard() {
   } : latestKpis
   const [review, setReview] = useState<number>()
 
+  const [dialog, setDialog] = useState<{ run: Schemas['RunDetail']; action: Schemas['ActionType'] } | null>(null)
+  function openReview(id: number, action?: Schemas['ActionType']) {
+    const run = runsById.get(id)
+    const offered = action ?? primaryReviewAction(run)
+    if (run && offered) setDialog({ run, action: offered })
+    else void navigate('/runs/' + id)
+  }
+  const dayAmounts = new Map<string, number>()
+  for (const run of rows) {
+    if (!run.outcome || !run.total) continue
+    const day = dayOf(run.created_at)
+    dayAmounts.set(day, (dayAmounts.get(day) ?? 0) + Number(run.total.replace('.', '')))
+  }
+
   const dashboardReviewKeys = Object.fromEntries(reviewActions(review == null ? undefined : runsById.get(review)).flatMap(action => {
     const key = actionShortcut(action)
-    return key ? [[key, () => void navigate('/queue?focus=' + review + '&action=' + action)]] : []
+    return key ? [[key, () => review != null && openReview(review, action)]] : []
   })) as Partial<Record<Shortcut, () => void>>
   useShortcuts({
     ...dashboardReviewKeys,
     week: () => setPeriod(0), month: () => setPeriod(1), quarter: () => setPeriod(2), all: () => setPeriod(3),
     queueLink: () => void navigate('/queue'),
-    open: () => { if (review != null) void navigate('/queue?focus=' + review + '&action=primary') },
+    open: () => { if (review != null) openReview(review) },
     escape: () => setReview(undefined),
   })
 
@@ -192,14 +209,14 @@ export function Dashboard() {
         const change = kpis && previous && days < 365 ? periodDelta(previous, kpis, metric, current) : null
         const difference = typeof change === 'number' ? change : null
         const tone = metric === 'touchless_rate' && difference ? difference > 0 ? 'good' : 'bad' : undefined
-        return <div className="col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
+        return <div className="relative col-span-6 grid sm:col-span-4 xl:col-span-2" key={metric}><KpiTile label={label} info={info} value={metricText(metric, current)}
           period={period} delta={change === 'no-prior' ? 'no-prior' : difference == null ? undefined : {
             value: difference,
             text: metric === 'touchless_rate' ? (Math.abs(difference) * 100).toFixed(1) + ' pp' : (metric === 'value_processed' || metric === 'exposure_stopped') ? compactMoney(Math.abs(difference)) : metricText(metric, Math.abs(difference)), tone,
-          }} series={spark(metric)} /></div>
+          }} series={spark(metric)} /><Link aria-label={'View runs for ' + label} className="absolute inset-0 hover:outline-1 hover:-outline-offset-1 hover:outline-primary" to={'/runs?view=' + (metric === 'awaiting_review' ? 'review' : metric === 'exposure_stopped' ? 'exceptions' : metric === 'touchless_rate' ? 'approved' : 'all')} /></div>
       })}
       <Panel className="col-span-full lg:col-span-8" title="Decisions per day" action={<span className="text-meta font-normal text-muted-foreground">{istDate(first)} – {istDate(today)}</span>}>
-        {stats.isPending ? <LoadingState label="Loading daily decisions" /> : <Decisions bars={byDay} />}
+        {stats.isPending ? <LoadingState label="Loading daily decisions" /> : <Suspense fallback={<LoadingState label="Loading daily decisions" />}><Decisions bars={byDay} amounts={dayAmounts} today={today} /></Suspense>}
       </Panel>
       <Panel className="col-span-full lg:col-span-4" title="Exceptions by reason">
         {stats.isPending ? <LoadingState label="Loading exceptions" /> : <Exceptions rows={[...exceptionRows.values()]} amounts={byReason} />}
@@ -218,14 +235,14 @@ export function Dashboard() {
                 const action = primaryReviewAction(detail)
                 const actionKey = (action && actionShortcut(action)) || 'open'
                 return <tr key={run.id} className={cn('table-row hover:bg-muted', review === run.id && 'bg-accent hover:bg-accent')} onFocus={() => setReview(run.id)}>
-                  <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate">{run.route ? routes[run.route] : '—'}</span></div></td>
+                  <td className="px-2"><div className="flex items-center gap-1.5"><StatusSquare outcome={effectiveOutcome(run)} /><span className="truncate" title={run.route ? routes[run.route] : undefined}>{run.route ? routes[run.route] : '—'}</span></div></td>
                   <td className="truncate px-2" title={run.vendor_name ?? undefined}><Link className="text-link" to={'/runs/' + run.id}>{run.vendor_name ?? 'Unknown vendor'}</Link></td>
                   <td className="px-2 text-right text-meta">{inr(run.total)}</td>
                   <td className="px-2 text-right text-meta whitespace-nowrap text-muted-foreground">{age(run.age_hours)}</td>
-                  <td className="truncate px-2 text-meta text-muted-foreground" title={run.question}>{run.question}</td>
-                  <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" asChild><Link to={'/queue?focus=' + run.id + (action ? '&action=primary' : '')}>
-                    <span className="truncate">{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
-                  </Link></Button></td>
+                  <td className="px-2 py-1 text-meta text-muted-foreground"><span className="line-clamp-2" title={run.question}>{run.question}</span></td>
+                  <td className="px-2 text-right"><Button variant="outline" size="sm" className="max-w-full" onClick={() => openReview(run.id, action)}>
+                    <span className="truncate" title={action ? actionLabel(action) : 'Review'}>{action ? actionLabel(action) : 'Review'}</span><ShortcutHint id={actionKey} />
+                  </Button></td>
                 </tr>
               })}</tbody>
             </table>
@@ -250,6 +267,7 @@ export function Dashboard() {
           <div className="overflow-auto"><RunsTable runs={recent} now={businessNow(today)} /></div>}
       </Panel>
     </div>
+    {dialog && <ReviewDialogs {...dialog} onClose={() => setDialog(null)} onReviewed={run => { cache.setQueryData(queryKeys.run(run.id), run); void navigate('/runs/' + run.id) }} />}
   </div>
 }
 
@@ -258,47 +276,21 @@ function median(timings: number[]) {
   return timings.length ? (timings[Math.floor((timings.length - 1) / 2)] + timings[Math.floor(timings.length / 2)]) / 2 : null
 }
 
-function Decisions({ bars }: { bars: Day[] }) {
-  const totals = dayOutcomes.map(outcome => bars.reduce((total, bar) => total + bar[outcome], 0))
-  const scale = Math.max(4, Math.ceil(Math.max(...bars.map(bar => dayOutcomes.reduce((sum, outcome) => sum + bar[outcome], 0))) / 4) * 4)
-  const labels = [0, Math.floor((bars.length - 1) / 3), Math.floor(2 * (bars.length - 1) / 3), bars.length - 1]
-  return <div className="p-3">
-    <div className="flex flex-wrap gap-x-4 gap-y-1 pb-2 text-meta">
-      {dayOutcomes.map((outcome, index) => <span className="flex items-center gap-1.5" key={outcome}><StatusSquare outcome={outcome} />{outcomeLabels[outcome]} <span className="text-muted-foreground">{totals[index]}</span></span>)}
-    </div>
-    <div className="relative ml-5 h-[146px] border-b">
-      {[0, 1, 2, 3, 4].map(step => <div key={step} className="pointer-events-none absolute inset-x-0 border-t" style={{ top: (step * 25) + '%' }}>
-        <span className="absolute right-full -translate-y-1/2 pr-2 text-meta text-muted-foreground">{scale - step * scale / 4}</span>
-      </div>)}
-      <div className="relative grid h-full" style={{ gridTemplateColumns: 'repeat(' + bars.length + ', minmax(0,1fr))' }}>
-        {bars.map((bar, index) => {
-          const title = istDate(bar.date) + ' · ' + dayOutcomes.map(outcome => outcomeLabels[outcome] + ' ' + bar[outcome]).join(' · ')
-          return <Link key={bar.date} tabIndex={dayOutcomes.some(key => bar[key]) ? 0 : -1} to={'/runs?date=' + bar.date} aria-label={title} title={title}
-            className="group relative flex h-full min-w-0 items-end justify-center hover:bg-accent focus-visible:bg-accent">
-            <span className="flex h-full w-[78%] max-w-3 flex-col-reverse">
-              {dayOutcomes.map(outcome => <span key={outcome} className="block shrink-0" style={{ backgroundColor: outcomeColors[outcome], height: (bar[outcome] / scale * 100) + '%' }} />)}
-            </span>
-            {labels.includes(index) && <span className={cn('pointer-events-none absolute top-full mt-1 whitespace-nowrap text-meta text-muted-foreground', index === 0 ? 'left-0' : index === bars.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
-              {new Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(bar.date))}</span>}
-          </Link>
-        })}
-      </div>
-    </div>
-    <div className="h-4" />
-  </div>
-}
-
 function Exceptions({ rows, amounts }: { rows: Schemas['StatsReason'][]; amounts: Map<string, number> }) {
-  const sorted = [...rows].sort((a, b) => b.count - a.count).slice(0, 5)
+  const navigate = useNavigate()
+  const risk = (code: string) => amounts.get(code) ?? 0
+  const sorted = [...rows].sort((a, b) => risk(b.code) - risk(a.code) || b.count - a.count).slice(0, 5)
+  const maxRisk = Math.max(0, ...sorted.map(row => risk(row.code)))
+  const maxCount = Math.max(1, ...sorted.map(row => row.count))
   if (!sorted.length) return <EmptyState title="No exceptions in this period" />
   return <table aria-label="Exceptions by reason" className="w-full table-fixed">
     <colgroup><col /><col className="w-[42px]" /><col className="w-[92px]" /><col className="w-[50px]" /></colgroup>
-    <thead className="table-head"><tr><th className="px-2 font-medium">Reason</th><th className="px-1 text-right font-medium">Count</th><th className="px-2 text-right font-medium">At risk</th><th><span className="sr-only">Relative frequency</span></th></tr></thead>
-    <tbody>{sorted.map(row => <tr key={row.code} className="table-row hover:bg-muted">
+    <thead className="table-head"><tr><th className="px-2 font-medium">Reason</th><th className="px-1 text-right font-medium">Count</th><th className="px-2 text-right font-medium">At risk</th><th><span className="sr-only">Relative amount at risk, or frequency when no amount is known</span></th></tr></thead>
+    <tbody>{sorted.map(row => <tr key={row.code} onClick={() => void navigate('/runs?reason=' + row.code)} className="table-row cursor-pointer hover:bg-muted">
       <td className="truncate px-2 text-meta"><Link className="text-link" to={'/runs?reason=' + row.code} title={reasons[row.code]}>{reasons[row.code]}</Link></td>
       <td className="px-1 text-right text-meta">{row.count}</td>
-      <td className="px-2 text-right text-meta">{money(amounts.get(row.code) ?? 0)}</td>
-      <td className="pr-2"><div className="h-1 bg-muted"><div className="h-full bg-faint" style={{ width: (row.count / sorted[0].count * 100) + '%' }} /></div></td>
+      <td className="px-2 text-right text-meta">{risk(row.code) ? money(risk(row.code)) : '—'}</td>
+      <td className="pr-2"><div className="h-1 bg-muted"><div className="h-full bg-faint" style={{ width: ((risk(row.code) ? risk(row.code) / maxRisk : row.count / maxCount) * 100) + '%' }} /></div></td>
     </tr>)}</tbody>
   </table>
 }

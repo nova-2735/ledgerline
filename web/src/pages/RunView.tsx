@@ -20,7 +20,7 @@ import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { FieldKey } from '@/lib/invoiceFields'
+import type { FieldKey, InvoiceEvidence } from '@/lib/invoiceFields'
 import { mergeRun } from '@/lib/runReducer'
 import { useShortcuts, type Shortcut } from '@/lib/shortcuts'
 
@@ -49,7 +49,7 @@ export function RunView() {
 }
 
 function RunSkeleton() {
-  return <div className="grid gap-px bg-border xl:h-full xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+  return <div className="grid gap-px bg-border md:h-full min-[85rem]:grid-cols-[300px_minmax(0,1fr)_420px]">
     {['Timeline', 'Document', 'Decision'].map(label => <section key={label} className="min-h-60 bg-card"><LoadingState label={'Loading ' + label.toLowerCase()} /></section>)}
   </div>
 }
@@ -84,6 +84,12 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
   const previous = index >= 0 ? all.data?.[index + 1]?.id : undefined
   const next = index > 0 ? all.data?.[index - 1]?.id : undefined
   const [field, setField] = useState<FieldKey | null>(null)
+  const [evidence, showEvidence] = useState<InvoiceEvidence | null>(null)
+  function jumpToEvidence(next: InvoiceEvidence) {
+    setSheet(false)
+    setField(null)
+    showEvidence(next)
+  }
   const [action, setAction] = useState<Action | null>(null)
   const [tab, setTab] = useState<RunTab>('decision')
   const [sheet, setSheet] = useState(false)
@@ -113,9 +119,10 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
   }
   function go(id: number) { void navigate('/runs/' + id) }
   function selectTab(nextTab: RunTab, openSheet = false) {
+    showEvidence(null)
     setField(null)
     setTab(nextTab)
-    if (openSheet && window.innerWidth < 1280) setSheet(true)
+    if (openSheet && window.innerWidth < 1360) setSheet(true)
   }
   function ask(action: Action) {
     if (!reviewActions(run).includes(action) || (action === 'approve' && approvalBlock(run))) return
@@ -140,14 +147,14 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
       </TabsTrigger>)}
     </TabsList>
     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2.5">
-      <TabsContent value="decision"><DecisionPanel run={run} onAction={ask} onHighlight={setField} /></TabsContent>
+      <TabsContent value="decision"><DecisionPanel run={run} onAction={ask} onHighlight={setField} onEvidence={jumpToEvidence} /></TabsContent>
       <TabsContent value="fields"><FieldsPanel extraction={run.extraction} onHighlight={setField} /></TabsContent>
       <TabsContent value="matching"><MatchingPanel run={run} /></TabsContent>
       <TabsContent value="audit"><AuditPanel run={run} events={progress.events} download={() => audit.mutate()} /></TabsContent>
     </div>
   </Tabs>
 
-  return <div className="flex min-h-full flex-col xl:h-full xl:min-h-0">
+  return <div className="flex min-h-full flex-col md:h-full md:min-h-0">
     <PageActions>
       <span className="hidden max-w-56 truncate text-meta text-muted-foreground md:inline" title={run.filename}>{run.filename}</span>
       {run.source === 'demo' && <Link className="text-link text-meta" to="/inbox">Inbox</Link>}
@@ -156,12 +163,12 @@ function RunWorkspace({ run: snapshot, preview }: { run: Detail; preview: boolea
     {running && connection === 'retrying' && <p role="status" className="border-b bg-card px-3 py-1 text-meta text-hold">Reconnecting to live updates…</p>}
     {audit.isError && <ErrorState title="Could not download the audit" error={audit.error} retry={() => audit.mutate()} />}
     {original.isError && <ErrorState title="Could not open the invoice PDF" error={original.error} retry={() => original.mutate()} />}
-    <div className="grid min-h-0 flex-1 gap-px bg-border md:grid-cols-[minmax(230px,0.85fr)_minmax(0,2fr)] xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+    <div className="grid min-h-0 flex-1 gap-px bg-border md:grid-cols-[minmax(230px,0.85fr)_minmax(0,2fr)] min-[85rem]:grid-cols-[300px_minmax(0,1fr)_420px]">
       <StageTimeline run={run} progress={progress} onHighlight={setField} />
-      <DocumentViewer run={run} active={field} ocrAvailable={health.data?.health.ocr_available} original={openOriginal} />
-      <section aria-label="Decision and evidence" className="hidden min-h-0 min-w-0 overflow-hidden bg-card xl:block">{tabs()}</section>
+      <DocumentViewer run={run} active={field} evidence={evidence} ocrAvailable={health.data?.health.ocr_available} original={openOriginal} />
+      <section aria-label="Decision and evidence" className="hidden min-h-0 min-w-0 overflow-hidden bg-card min-[85rem]:block">{tabs()}</section>
     </div>
-    <div className="sticky bottom-0 flex justify-end border-t bg-card p-2 xl:hidden">
+    <div className="sticky bottom-0 flex justify-end border-t bg-card p-2 min-[85rem]:hidden">
       <Button type="button" onClick={() => setSheet(true)}><PanelBottom aria-hidden="true" />Decision and evidence</Button>
       <Sheet open={sheet} onOpenChange={setSheet}>
         <SheetContent side="bottom" data-shortcut-scope="run-evidence" className="h-[78dvh] max-h-[88dvh] gap-0 overflow-hidden">

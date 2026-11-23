@@ -1,19 +1,20 @@
-import { useState } from 'react'
+import { lazy, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import { isAccessError } from '@/api/hooks'
 import { AppShell, restoreAccessCode } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Dashboard } from '@/pages/Dashboard'
-import { Inbox } from '@/pages/Inbox'
-import { Runs } from '@/pages/Runs'
-import { RunView } from '@/pages/RunView'
-import { Policy } from '@/pages/Policy'
-import { PoDetail } from '@/pages/PoDetail'
-import { PurchaseOrders } from '@/pages/PurchaseOrders'
-import { Queue } from '@/pages/Queue'
-import { Vendors } from '@/pages/Vendors'
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(module => ({ default: module.Dashboard })))
+const HowItWorks = lazy(() => import('@/pages/HowItWorks'))
+const Inbox = lazy(() => import('@/pages/Inbox').then(module => ({ default: module.Inbox })))
+const Runs = lazy(() => import('@/pages/Runs').then(module => ({ default: module.Runs })))
+const RunView = lazy(() => import('@/pages/RunView').then(module => ({ default: module.RunView })))
+const Policy = lazy(() => import('@/pages/Policy').then(module => ({ default: module.Policy })))
+const PoDetail = lazy(() => import('@/pages/PoDetail').then(module => ({ default: module.PoDetail })))
+const PurchaseOrders = lazy(() => import('@/pages/PurchaseOrders').then(module => ({ default: module.PurchaseOrders })))
+const Queue = lazy(() => import('@/pages/Queue').then(module => ({ default: module.Queue })))
+const Vendors = lazy(() => import('@/pages/Vendors').then(module => ({ default: module.Vendors })))
 
 export default function App() {
   const [queryClient] = useState(() => {
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="purchase-orders" element={<PurchaseOrders />} />
             <Route path="purchase-orders/:po" element={<PoDetail />} />
             <Route path="vendors" element={<Vendors />} />
+            <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="policy" element={<Policy />} />
             <Route path="*" element={<div className="panel p-6"><h1 className="page-title">Page not found</h1><Link to="/" className="mt-2 inline-block text-indigo-700 hover:underline">Go to dashboard</Link></div>} />
           </Route>

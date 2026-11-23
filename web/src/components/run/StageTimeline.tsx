@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react'
 import type { Schemas } from '@/api/client'
 import { ShortcutHint } from '@/components/ShortcutHint'
 import { Button } from '@/components/ui/button'
+import { stages } from '@/lib/labels'
 import { istTime } from '@/lib/format'
 import type { FieldKey } from '@/lib/invoiceFields'
 import { pendingStage, resumeStage, stageOrder, type RunProgress } from '@/lib/runReducer'
@@ -36,12 +37,12 @@ export function StageTimeline({ run, progress, onHighlight }: {
         <Button variant="ghost" size="icon-sm" title="Expand next stage" aria-label="Expand next stage" onClick={() => step('next')}><ArrowDown className="sr-only" /><ShortcutHint id="nextStage" /></Button>
       </div>
     </header>
-    <span className="sr-only" aria-live="polite" aria-atomic="true">{updates?.message ?? ''}</span>
+    <span className="sr-only" aria-live="polite" aria-atomic="true">{updates?.message ?? (updates?.stage ? stages[updates.stage] : '')}</span>
     <div className="min-h-0 flex-1 overflow-y-auto">
       {stageOrder.map((name, index) => {
         const stage = run.stages.find(row => row.name === name) ?? pendingStage(name)
         return <div key={name}>
-          {marker && name === point && <div className="flex items-center gap-1.5 border-y bg-accent px-2.5 py-2 text-meta text-primary">
+          {marker && name === point && <div data-testid="resume-divider" className="flex items-center gap-1.5 border-y bg-accent px-2.5 py-2 text-meta text-primary">
             <RotateCcw aria-hidden="true" className="size-3 shrink-0" />
             <span title={marker.message}>{marker.review ? 'Resumed · ' + marker.review.reviewer +
               (marker.review.po_number ? ' confirmed ' + marker.review.po_number : '') : marker.message} · {istTime(marker.ts)}</span>

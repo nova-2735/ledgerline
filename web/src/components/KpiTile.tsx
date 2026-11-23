@@ -23,7 +23,7 @@ function Tile({ label, info, value, series, children }: { label: string; info: s
     <div className="flex items-center justify-between gap-1">
       <h2 className="truncate text-meta font-medium text-muted-foreground" title={label}>{label}</h2>
       <Tooltip>
-        <TooltipTrigger asChild><button type="button" aria-label={'About ' + label} className="grid size-5 shrink-0 place-items-center text-muted-foreground hover:text-primary"><Info aria-hidden="true" className="size-3.5" /></button></TooltipTrigger>
+        <TooltipTrigger asChild><button type="button" aria-label={'About ' + label} className="relative z-10 grid size-5 shrink-0 place-items-center text-muted-foreground hover:text-primary"><Info aria-hidden="true" className="size-3.5" /></button></TooltipTrigger>
         <TooltipContent>{info}</TooltipContent>
       </Tooltip>
     </div>

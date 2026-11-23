@@ -8,7 +8,7 @@ export function PostingTable({ posting }: { posting: Schemas['PostingPayload'] }
     <Table>
       <TableHeader className="bg-muted"><TableRow>{['GL account', 'Cost centre', 'Taxable', 'Tax'].map((label, i) =>
         <TableHead key={label} className={i >= 2 ? 'text-right' : undefined}>{label}</TableHead>)}</TableRow></TableHeader>
-      <TableBody>{posting.lines.map(line => <TableRow key={`${line.po_number}-${line.po_line_no}`}>
+      <TableBody data-testid="posting-lines">{posting.lines.map(line => <TableRow key={`${line.po_number}-${line.po_line_no}`}>
         <TableCell title={line.description}>{line.gl_account}</TableCell><TableCell className="identifier">{line.cost_center}</TableCell>
         <TableCell className="text-right tabular-nums">{inr(line.taxable_amount)}</TableCell>
         <TableCell className="text-right tabular-nums">{inr(line.tax_amount)}</TableCell>

@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+// Run against a seeded local stack with S01 still unprocessed.
+const fs = require('node:fs/promises')
+const path = require('node:path')
+const os = require('node:os')
+const { createRequire } = require('node:module')
+const { execFileSync } = require('node:child_process')
+const root = path.resolve(__dirname, '..')
+const { chromium, expect } = createRequire(path.join(root, 'web/package.json'))('@playwright/test')
+const baseURL = process.env.WEB_URL || 'http://127.0.0.1:5173'
+const sizes = [[1280,800], [1440,900], [1920,1080]]
+const directory = path.join(root, 'docs', 'img')
+const qa = process.argv.includes('--qa')
+const report = path.join(root, 'reports', 'visual')
+const headers = process.env.DEMO_ACCESS_CODE ? { 'X-Access-Code': process.env.DEMO_ACCESS_CODE } : {}
+
+async function main() {
+  if (!['localhost','127.0.0.1','[::1]'].includes(new URL(baseURL).hostname)) throw Error('Use the local demo stack.')
+  const api = async (route, method = 'GET', body) => {
+    const response = await fetch(new URL('/api' + route, baseURL), { method, headers: { ...headers, ...(body ? {'Content-Type':'application/json'} : {}) }, body: body && JSON.stringify(body) })
+    if (!response.ok) throw Error(route + ' returned ' + response.status)
+    return response.json()
+  }
+  if ((await api('/health')).llm_provider !== 'gemini') throw Error('Screens require the Gemini provider.')
+  const inbox = await api('/demo/inbox')
+  if (inbox.find(doc => doc.doc_id === 'S01')?.processed_run_ids.length) throw Error('Use a freshly seeded demo so S01 can complete its first run.')
+  const frames = await fs.mkdtemp(path.join(os.tmpdir(), 'ledgerline-frames-'))
+  const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || (process.platform === 'win32' ? 'msedge' : 'chromium') })
+  try {
+    await fs.mkdir(directory, { recursive: true })
+    const context = await browser.newContext({baseURL,viewport:{width:1440,height:900},reducedMotion:'reduce'})
+    await context.addInitScript(code => {
+      localStorage.setItem('ledgerline-theme','light')
+      if (code) sessionStorage.setItem('ledgerline-access',code)
+    },process.env.DEMO_ACCESS_CODE ?? null)
+    const page = await context.newPage()
+    const uiHealth = page.waitForResponse(response => new URL(response.url()).pathname === '/api/health')
+    await page.goto('/inbox')
+    if ((await (await uiHealth).json()).llm_provider !== 'gemini') throw Error('The web app must be connected to the Gemini API.')
+    await expect(page.getByTestId('mail-S01')).toBeVisible()
+    const bank = inbox.find(doc => doc.doc_id === 'S06')
+    const bankID = bank.processed_run_ids.at(-1) || (await api('/demo/runs/S06', 'POST')).run_id
+    await expect.poll(async () => (await api('/runs/' + bankID)).primary_reason, { timeout:180000 }).toBe('BANK_DETAILS_CHANGED')
+    if ((await api('/runs/' + bankID)).extraction?.meta.provider !== 'gemini') throw Error('S06 must have a Gemini reading.')
+    const {run_id} = await api('/demo/runs/S01', 'POST', { force_fresh: true })
+    await page.goto('/runs/' + run_id)
+    await expect(page.locator('[data-status="running"]').first()).toBeVisible({timeout:30000})
+    const first = path.join(frames,'0000.png')
+    await page.screenshot({path:first})
+    if (qa) {
+      for (const [width,height] of sizes) {
+        await page.setViewportSize({width,height})
+        for (const theme of ['light','dark']) {
+          if (await page.locator('html').evaluate(el=>el.classList.contains('dark')) !== (theme === 'dark')) await page.keyboard.press('t')
+          await expect(page.locator('[data-status="running"]').first()).toBeVisible()
+          const dir = path.join(report,width+'x'+height,theme)
+          await fs.mkdir(dir,{recursive:true})
+          await page.screenshot({path:path.join(dir,'streaming.png')})
+        }
+      }
+      await page.setViewportSize({width:1440,height:900})
+      await page.keyboard.press('t')
+    }
+    const names = [first]
+    let previous = ''
+    const deadline = Date.now() + 180000
+    do {
+      const state = await page.locator('[data-stage]').evaluateAll(rows => rows.map(row => row.dataset.status).join(','))
+      if (state !== previous) {
+        const name = path.join(frames,String(names.length).padStart(4,'0')+'.png')
+        await page.screenshot({path:name})
+        names.push(name)
+        previous = state
+      }
+      if (await page.getByRole('heading',{name:'Posting preview'}).isVisible()) break
+      if (Date.now() > deadline) throw Error('S01 did not produce posting lines before the recording deadline.')
+      await page.waitForFunction(last => [...document.querySelectorAll('[data-stage]')].map(row => row.dataset.status).join(',') !== last, previous, {timeout:1000}).catch(error => { if (error.name !== 'TimeoutError') throw error })
+    } while (true)
+    const complete = await api('/runs/' + run_id)
+    if (complete.outcome !== 'APPROVE' || complete.extraction?.meta.provider !== 'gemini' || names.length < 3) throw Error('Expected a live S01 approval with distinct stage frames.')
+    const assemble = [
+      'from PIL import Image', 'from pathlib import Path', 'import sys',
+      'frames=[Image.open(p).convert("RGB").resize((960,600),Image.Resampling.LANCZOS).quantize(colors=128) for p in sorted(Path(sys.argv[1]).glob("*.png"))]',
+      'frames[0].save(sys.argv[2],save_all=True,append_images=frames[1:],duration=round(1200/len(frames))*10,loop=0,optimize=True)',
+    ].join('\n')
+    const gif = path.join(directory,'live-run.gif')
+    execFileSync('uv',['run','python','-c',assemble,frames,gif],{cwd:path.join(root,'backend'),stdio:'inherit'})
+    if ((await fs.stat(gif)).size >= 5000000) throw Error('GIF exceeds 5 MB.')
+    const screens = [
+      ['dashboard','/','table[aria-label="Invoices that need attention"] tbody tr'],
+      ['live-run','/runs/'+bankID,'[role="tabpanel"] button'],
+      ['inbox','/inbox?doc=S06','section[aria-label="Last run decision"] img'],
+      ['queue','/queue','tbody tr'], ['how-it-works','/how-it-works','a[href*="folder=edge"]'],
+    ]
+    for (const [name,route,selector] of screens) {
+      await page.goto(route)
+      await expect(page.locator(selector).first()).toBeVisible()
+      await page.waitForLoadState('networkidle')
+      await page.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].map(image => image.decode())) })
+      await page.screenshot({path:path.join(directory,name+'.png')})
+    }
+    console.log('Captured five screens and',names.length,'distinct live frames for S01.')
+  } finally { await browser.close(); await fs.rm(frames,{recursive:true,force:true}) }
+}
+main().catch(error => {console.error(error.message);process.exitCode=1})

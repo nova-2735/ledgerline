@@ -28,6 +28,6 @@ export function ErrorState({ title, error, retry }: { title: string; error?: unk
     <CircleAlert aria-hidden="true" />
     <AlertTitle>{title}</AlertTitle>
     {error instanceof Error && <AlertDescription>{error.message}</AlertDescription>}
-    {retry && <Button variant="outline" size="sm" className="col-start-2 mt-2 justify-self-start" onClick={retry}>Try again</Button>}
+    {retry && <Button variant="outline" size="sm" className="col-start-2 mt-2 justify-self-start" onClick={retry}>Retry</Button>}
   </Alert>
 }

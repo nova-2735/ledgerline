@@ -2,6 +2,8 @@ import type { components, operations } from './types.gen'
 
 export type Schemas = components['schemas']
 
+export type InboxItem = Schemas['DemoInboxItem'] & { group?: 'stress' | 'scenario' }
+
 type Query<Op extends keyof operations> = operations[Op]['parameters'] extends { query?: infer Q }
   ? NonNullable<Q>
   : never
@@ -102,6 +104,23 @@ export function runEventsUrl(runId: number, after?: number): string {
   return buildUrl(`/runs/${runId}/events`, { after, code: accessCode })
 }
 
+export function auditPdfUrl(runId: number): string {
+  return buildUrl(`/runs/${runId}/audit.pdf`, { code: accessCode })
+}
+
+export async function supportsAuditPdf(runId: number, signal?: AbortSignal): Promise<boolean> {
+  if (USE_MOCKS) return false
+  const url = auditPdfUrl(runId)
+  let response = await fetch(url, { method: 'HEAD', signal })
+  if (response.status === 405 || response.status === 501) {
+    response = await fetch(url, { signal })
+    await response.body?.cancel()
+  }
+  if (response.status === 404) return false
+  if (!response.ok) throw new ApiError(response.status, 'audit_pdf_probe', 'Could not check audit PDF availability.')
+  return response.headers.get('content-type')?.includes('application/pdf') ?? false
+}
+
 export function runDocumentUrl(runId: number): string {
   return buildUrl(`/runs/${runId}/document`, { code: accessCode })
 }
@@ -128,7 +147,7 @@ export const api = {
     request<Schemas['RunDetail']>('POST', `/runs/${runId}/review`, { json: body }),
 
   demoInbox: (signal?: AbortSignal) =>
-    request<Schemas['DemoInboxItem'][]>('GET', '/demo/inbox', { signal }),
+    request<InboxItem[]>('GET', '/demo/inbox', { signal }),
   createDemoRun: (docId: string, forceFresh = false) =>
     request<Schemas['RunCreated']>('POST', `/demo/runs/${enc(docId)}`, {
       json: { force_fresh: forceFresh } satisfies Schemas['DemoRunRequest'],

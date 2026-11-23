@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, setAccessCode } from '@/api/client'
 import { isAccessError, queryKeys, useHealth, useQueue, useRuns } from '@/api/hooks'
-import { ErrorState } from '@/components/EmptyState'
+import { ErrorState, LoadingState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -114,7 +114,7 @@ export function AppShell() {
     <div className="flex min-h-0 min-w-0 flex-col">
       <TopBar actionsRef={setActionTarget} />
       <main id="main" className="min-h-0 flex-1 overflow-auto">
-        <RunConnection.Provider value={setRunLive}><PageActionsTarget.Provider value={actionTarget}><Outlet /></PageActionsTarget.Provider></RunConnection.Provider>
+        <RunConnection.Provider value={setRunLive}><PageActionsTarget.Provider value={actionTarget}><Suspense fallback={<LoadingState label="Loading page" />}><Outlet /></Suspense></PageActionsTarget.Provider></RunConnection.Provider>
       </main>
     </div>
     <StatusBar health={health.data?.health} ms={health.data?.ms} error={health.isError} count={runs.data?.total}
@@ -127,7 +127,7 @@ export function AppShell() {
         <DialogHeader><DialogTitle>Enter demo access code</DialogTitle><DialogDescription>Use the access code for this Ledgerline workspace.</DialogDescription></DialogHeader>
         <form onSubmit={submitCode} className="space-y-3">
           <Input aria-label="Access code" type="password" value={code} onChange={event => setCode(event.target.value)} required />
-          {unlock.isError && <ErrorState title={isAccessError(unlock.error) ? 'That access code did not work' : 'Could not check the access code'} />}
+          {unlock.isError && <ErrorState title={isAccessError(unlock.error) ? 'That access code did not work' : 'Could not check the access code'} retry={() => unlock.mutate(code)} />}
           <DialogFooter><Button type="submit" disabled={!code.trim() || unlock.isPending}>Continue</Button></DialogFooter>
         </form>
       </DialogContent>
@@ -136,7 +136,7 @@ export function AppShell() {
       <DialogContent>
         {dialog === 'reset' ? <>
           <DialogHeader><DialogTitle>Reset demo data?</DialogTitle><DialogDescription>This deletes runs and reviews added in the demo and restores the seeded data.</DialogDescription></DialogHeader>
-          {reset.isError && <ErrorState title="Could not reset demo data" error={reset.error} />}
+          {reset.isError && <ErrorState title="Could not reset demo data" error={reset.error} retry={() => reset.mutate()} />}
           <DialogFooter>
             <Button type="button" variant="outline" disabled={reset.isPending} onClick={() => setDialog(null)}>Cancel</Button>
             <Button type="button" variant="destructive" disabled={reset.isPending} onClick={() => reset.mutate()}>{reset.isPending ? 'Resetting…' : 'Reset demo data'}</Button>

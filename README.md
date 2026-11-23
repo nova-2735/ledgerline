@@ -12,9 +12,15 @@ Ledgerline turns a PDF invoice into a reasoned accounts-payable decision.
 separately. The app runs on a free host that sleeps when idle, so the first load can take about a
 minute. After that it is fast.
 
-![Dashboard](docs/img/dashboard.png)
+## Screens
 
-![Inbox with the demo invoices](docs/img/inbox.png)
+| Dashboard | Invoice inbox |
+| --- | --- |
+| ![Dashboard with the 90-day decision history and invoices needing attention](docs/img/dashboard.png) | ![Inbox with the selected invoice and its review question](docs/img/inbox.png) |
+| **Decision and evidence** | **Review queue** |
+| ![S06 on hold for treasury to verify changed bank details](docs/img/live-run.png) | ![Review queue grouped by the person responsible](docs/img/queue.png) |
+| **How it works** | **Live processing** |
+| ![Buyer’s guide to the checks, outcomes and current policy](docs/img/how-it-works.png) | ![S01 progressing from intake through approval](docs/img/live-run.gif) |
 
 ## Using it
 

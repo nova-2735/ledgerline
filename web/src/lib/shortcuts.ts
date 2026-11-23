@@ -10,6 +10,7 @@ export const destinations = [
   { id: 'orders', label: 'POs', path: '/purchase-orders', key: 'P' },
   { id: 'vendors', label: 'Vendors', path: '/vendors', key: 'V' },
   { id: 'policy', label: 'Policy', path: '/policy', key: 'Y' },
+  { id: 'guide', label: 'How it works', path: '/how-it-works', key: 'H' },
 ] as const
 
 const scopes = ['Lists', 'Dashboard', 'Runs', 'Inbox', 'Run view', 'Review'] as const
@@ -30,6 +31,7 @@ export const shortcuts = {
   orders: { label: 'POs', keys: ['G', 'P'], group: 'Go to' },
   vendors: { label: 'Vendors', keys: ['G', 'V'], group: 'Go to' },
   policy: { label: 'Policy', keys: ['G', 'Y'], group: 'Go to' },
+  guide: { label: 'How it works', keys: ['G', 'H'], group: 'Go to' },
   search: { label: 'Focus search or filters', keys: ['/'], group: 'Lists' },
   next: { label: 'Next row', keys: ['J'], group: 'Lists' },
   previous: { label: 'Previous row', keys: ['K'], group: 'Lists' },
@@ -42,6 +44,8 @@ export const shortcuts = {
   month: { label: 'Last 30 days', keys: ['2'], group: 'Dashboard' },
   quarter: { label: 'Last 90 days', keys: ['3'], group: 'Dashboard' },
   all: { label: 'All available days', keys: ['4'], group: 'Dashboard' },
+  upload: { label: 'Upload PDF', keys: ['U'], group: 'Inbox' },
+  processAll: { label: 'Process all unprocessed', keys: ['Shift', 'B'], group: 'Inbox' },
   previewMessage: { label: 'Focus message preview', keys: ['Space'], group: 'Inbox' },
   process: { label: 'Process invoice', keys: ['P'], group: 'Inbox' },
   fresh: { label: 'Process with fresh read', keys: ['Shift', 'P'], group: 'Inbox' },

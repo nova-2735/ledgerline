@@ -122,8 +122,8 @@ function ReviewForm({ action, run, onClose, onReviewed }: {
         <label className="grid gap-1.5 text-sm font-medium">Note
           <Textarea required value={note} onChange={event => setNote(event.target.value)} />
         </label>
-        {blocked && <ErrorState title={blocked} />}
-        {submit.isError && <ErrorState title="Could not record the review" error={submit.error} />}
+        {blocked && <p role="note" className="text-hold">{blocked}</p>}
+        {submit.isError && <ErrorState title="Could not record the review" error={submit.error} retry={() => submit.variables && submit.mutate(submit.variables)} />}
         <DialogFooter>
           <Button type="button" variant="outline" disabled={submit.isPending} onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={!valid || submit.isPending} variant={action === 'reject' ? 'destructive' : 'default'}>
