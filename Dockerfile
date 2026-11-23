@@ -19,6 +19,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /uvx /bin/
 
+# OMP_THREAD_LIMIT=1: on a fractional-CPU instance Tesseract's OpenMP threads only contend for the
+# same quota; a single thread reads a scan faster there.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
@@ -26,6 +28,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     PATH="/app/backend/.venv/bin:$PATH" \
     INVOICE_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf \
+    OMP_THREAD_LIMIT=1 \
     DATA_DIR=/app/data \
     PORT=8000
 
