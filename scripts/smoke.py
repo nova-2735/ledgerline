@@ -2,9 +2,9 @@
 
     make smoke BASE_URL=https://<service>.onrender.com ACCESS_CODE=<code>
 
-Checks, in order: health, demo reset, S01 approves, S06 holds for treasury. Prints the
-timings and exits non-zero on the first failure. A sleeping free instance can take a minute to
-wake, so the health check waits for it.
+Checks, in order: health, demo reset, S01 approves, S06 holds for treasury, the S04 scan holds
+for a PO confirmation. Prints the timings and exits non-zero on the first failure. A sleeping
+free instance can take a minute to wake, so the health check waits for it.
 """
 
 from __future__ import annotations
@@ -134,6 +134,10 @@ def main(argv: list[str] | None = None) -> int:
     smoke.step("S01 approves", lambda: smoke.expect("S01", "APPROVE", "none", args.run_wait))
     smoke.step(
         "S06 holds for treasury", lambda: smoke.expect("S06", "HOLD", "treasury", args.run_wait)
+    )
+    smoke.step(
+        "S04 scan holds for PO confirmation",
+        lambda: smoke.expect("S04", "HOLD", "ap_clerk", args.run_wait),
     )
     total = sum(t for _, t in smoke.timings)
     print("timings: " + " | ".join(f"{n} {t:.1f} s" for n, t in smoke.timings))
