@@ -24,11 +24,14 @@ minute. After that it is fast.
 
 ## Using it
 
-- **Inbox**: 15 demo invoices (clean, scanned, bundled, tax-inclusive, missing fields) plus your
+- **Inbox**: 15 demo invoices (clean, scanned, bundled, tax-inclusive, missing fields), a
+  **Stress tests** folder with ten unseen, deliberately awkward documents (sideways scan, phone
+  photo, USD invoice, credit note, two invoices in one PDF, delivery challan and more) and your
   own uploads. Pick one and process it.
 - **Live run view**: the invoice page on the left with the fields it read highlighted, the 11
   steps on the right ticking through as they run, then the decision card: outcome, headline, what
-  failed (with numbers), what passed, and the next step.
+  failed (with numbers), what passed, and the next step. **Audit PDF** downloads the full record:
+  decision, checks, fields read with their confidence, step timings and review history.
 - **Runs table**: every run with its outcome, amount, vendor and time; filter, peek at a run, or
   export to CSV.
 - **Review queue**: held and returned invoices grouped by owner (buyer, receiving, treasury and so
@@ -38,6 +41,8 @@ minute. After that it is fast.
 - **Reference pages**: purchase orders (ordered / received / billed per line), vendors, and the
   policy with a "what if" preview of a tolerance change.
 - **Keyboard**: `Ctrl+K` opens the command palette and search; `?` lists every shortcut.
+- **Limits**: each address can start about 10 runs a minute and has its own share of live model
+  readings per hour; past either, the app says how long to wait. Saved readings are always free.
 
 The status bar always shows the active model provider. Seeded history is labelled as seeded, and
 a reading reused from the cache is labelled as cached.

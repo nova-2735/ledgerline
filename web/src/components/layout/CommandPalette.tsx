@@ -39,7 +39,7 @@ function PaletteContents({ close, onReset, onSidebar }: { close: () => void; onR
       void cache.invalidateQueries({ queryKey: queryKeys.inbox })
       void navigate(`/runs/${run_id}`)
     },
-    onError: () => toast.error('Could not process invoice'),
+    onError: error => toast.error('Could not process invoice', { description: error.message }),
   })
 
   useEffect(() => {

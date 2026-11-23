@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 
 async function processInvoice(page: Page, scenario: string, outcome: string) {
@@ -87,4 +88,34 @@ test('previewing a higher price tolerance flips S12', async ({ page }) => {
   await page.getByRole('button',{name:'Preview impact'}).click()
   const row = page.getByRole('table',{name:'Policy impact'}).getByRole('row').filter({has:page.locator('a[href="' + id + '"]')})
   await expect(row.getByRole('group',{name:'Hold → Approve'})).toBeVisible()
+})
+
+test('the stress folder lists the unseen documents and U09 holds as two invoices', async ({ page }) => {
+  await page.goto('/inbox?folder=stress')
+  await expect(page.getByTestId('mail-U09')).toBeVisible()
+  await expect(page.getByTestId('mail-S01')).toHaveCount(0)
+  await processInvoice(page, 'U09', 'HOLD')
+  await expect(page.getByText(/2 invoices/).first()).toBeVisible()
+})
+
+test('the audit PDF link downloads the run record as a PDF', async ({ page }) => {
+  await processInvoice(page, 'S13', 'HOLD')
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('link', { name: /Audit PDF/ }).click(),
+  ])
+  expect(download.suggestedFilename()).toMatch(/^R-\d{4}-audit\.pdf$/)
+  const bytes = await readFile(await download.path())
+  expect(bytes.subarray(0, 5).toString()).toBe('%PDF-')
+})
+
+test('resetting the demo says how long it took', async ({ page }) => {
+  await page.goto('/')
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog')
+  await palette.getByRole('combobox').fill('Reset')
+  await palette.getByRole('option', { name: /Reset demo data/ }).click()
+  await page.getByRole('button', { name: 'Reset demo data' }).click()
+  await expect(page.getByText(/Demo data reset in \d+(\.\d)? s/)).toBeVisible()
+  await expect(page.getByText(/Restored the seeded history/)).toBeVisible()
 })

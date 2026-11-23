@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { auditPdfUrl, supportsAuditPdf, type Schemas } from '@/api/client'
+import { auditPdfUrl, USE_MOCKS, type Schemas } from '@/api/client'
 import { PageActions } from '@/components/layout/PageActions'
 import { OutcomeBadge } from '@/components/OutcomeBadge'
 import { RunStatusChip } from '@/components/StatusChip'
@@ -15,11 +14,6 @@ export function RecordBar({ run, prev, next, navigate, download, downloading, or
   run: Schemas['RunDetail']; prev?: number; next?: number; navigate: (id: number) => void
   download: () => void; downloading: boolean; original: () => void
 }) {
-  const pdf = useQuery({
-    queryKey: ['audit-pdf-support'],
-    queryFn: ({ signal }) => supportsAuditPdf(run.id, signal),
-    staleTime: Infinity, gcTime: Infinity,
-  })
   const outcome = effectiveOutcome(run)
   return <><PageActions>
     <span className="hidden items-center gap-2 whitespace-nowrap text-meta text-muted-foreground lg:flex">
@@ -40,10 +34,10 @@ export function RecordBar({ run, prev, next, navigate, download, downloading, or
       <Button variant="ghost" size="sm" aria-label="Previous run" title="Previous run" disabled={!prev} onClick={() => prev && navigate(prev)}><ChevronLeft className="lg:hidden" /><ShortcutHint id="prevRun" className="hidden lg:inline-flex" /></Button>
       <Button variant="ghost" size="sm" aria-label="Next run" title="Next run" disabled={!next} onClick={() => next && navigate(next)}><ChevronRight className="lg:hidden" /><ShortcutHint id="nextRun" className="hidden lg:inline-flex" /></Button>
       <Button variant="outline" size="sm" disabled={downloading} aria-label="Download audit JSON" title="Download audit JSON" onClick={download}><Download /><span className="hidden xl:inline">Audit JSON</span></Button>
-      {pdf.data ? <Button asChild variant="outline" size="sm"><a href={auditPdfUrl(run.id)} download><Download />Audit PDF</a></Button> :
-        <span tabIndex={0} title={pdf.isPending ? 'Checking availability' : pdf.isError ? 'Could not check availability' : 'Available after backend update'}>
+      {USE_MOCKS ? <span tabIndex={0} title="Needs the live API (not available with mock data)">
           <Button variant="outline" size="sm" disabled><Download />Audit PDF</Button>
-        </span>}
+        </span> :
+        <Button asChild variant="outline" size="sm"><a href={auditPdfUrl(run.id)} download={run.display_id + '-audit.pdf'} title="Download the audit record as PDF"><Download />Audit PDF</a></Button>}
       <Button variant="outline" size="sm" aria-label="Open original PDF" title="Open original PDF" onClick={original}><FileText /><span className="hidden xl:inline">Original PDF</span></Button>
     </div>
   </div></>

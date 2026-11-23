@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Search, Upload } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, type InboxItem, type Schemas } from '@/api/client'
+import { api, waitText, withRateLimitRetry, type InboxItem, type Schemas } from '@/api/client'
 import { queryKeys, useAllRuns, useInbox, useRun } from '@/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/components/EmptyState'
 import { InvoicePreview } from '@/components/InvoicePreview'
@@ -79,7 +79,12 @@ export function Inbox() {
   const batch = useMutation({
     mutationFn: async () => {
       const pending = (await api.demoInbox()).filter(doc => !doc.processed_run_ids.length)
-      for (const doc of pending) await api.createDemoRun(doc.doc_id, forceFresh)
+      for (const doc of pending) {
+        // Pace the batch: wait out the per-address rate limit instead of failing half way.
+        await withRateLimitRetry(() => api.createDemoRun(doc.doc_id, forceFresh), {
+          onWait: seconds => toast.message(`Pausing ${waitText(seconds)} to stay within the rate limit`),
+        })
+      }
       return pending.length
     },
     onSuccess: count => toast.success(count + ' invoices queued'),

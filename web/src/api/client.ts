@@ -2,7 +2,7 @@ import type { components, operations } from './types.gen'
 
 export type Schemas = components['schemas']
 
-export type InboxItem = Schemas['DemoInboxItem'] & { group?: 'stress' | 'scenario' }
+export type InboxItem = Schemas['DemoInboxItem']
 
 type Query<Op extends keyof operations> = operations[Op]['parameters'] extends { query?: infer Q }
   ? NonNullable<Q>
@@ -15,13 +15,75 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly detail: string
+  /** Seconds from the `Retry-After` header of a 429, when the server sent one. */
+  readonly retryAfter: number | null
 
-  constructor(status: number, code: string, detail: string) {
-    super(detail)
+  constructor(status: number, code: string, detail: string, retryAfter: number | null = null) {
+    super(status === 429 ? limitMessage(code, detail, retryAfter) : detail)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.detail = detail
+    this.retryAfter = retryAfter
+  }
+}
+
+/** "12 seconds", "about 4 minutes", or "a little while" when the server gave no time. */
+export function waitText(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return 'a little while'
+  if (seconds <= 90) return `${Math.ceil(seconds)} second${Math.ceil(seconds) === 1 ? '' : 's'}`
+  const minutes = Math.ceil(seconds / 60)
+  return `about ${minutes} minute${minutes === 1 ? '' : 's'}`
+}
+
+function limitMessage(code: string, detail: string, retryAfter: number | null): string {
+  if (code === 'rate_limited') {
+    return `Too many invoices were sent in a short time. Try again in ${waitText(retryAfter)}.`
+  }
+  if (code === 'reading_limit') {
+    return 'The limit for live model readings has been reached for now. Invoices that were read '
+      + `before still work; try new files again in ${waitText(retryAfter)}.`
+  }
+  return detail
+}
+
+function retryAfterSeconds(res: Response): number | null {
+  const raw = res.headers.get('Retry-After')
+  if (!raw) return null
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds)) return seconds
+  const at = Date.parse(raw)
+  return Number.isNaN(at) ? null : Math.max(0, (at - Date.now()) / 1000)
+}
+
+/** Run `fn`, waiting out `rate_limited` answers (up to `maxWaitSeconds` each) and trying again. */
+export async function withRateLimitRetry<T>(
+  fn: () => Promise<T>,
+  { attempts = 4, maxWaitSeconds = 60, sleep = (ms: number) => new Promise<void>(done => setTimeout(done, ms)), onWait }: {
+    attempts?: number; maxWaitSeconds?: number; sleep?: (ms: number) => Promise<void>; onWait?: (seconds: number) => void
+  } = {},
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      const wait = error instanceof ApiError && error.code === 'rate_limited' ? error.retryAfter ?? 6 : null
+      if (wait === null || wait > maxWaitSeconds || attempt >= attempts) throw error
+      onWait?.(wait)
+      await sleep(wait * 1000)
+    }
+  }
+}
+
+/** Toast text for a finished demo reset: "Demo data reset in 0.4 s". */
+export function resetSummary(result: Schemas['ResetResponse']): { title: string; description: string } {
+  const seconds = result.duration_ms / 1000
+  const took = seconds < 10 ? seconds.toFixed(1) : String(Math.round(seconds))
+  return {
+    title: `Demo data reset in ${took} s`,
+    description: result.mode === 'snapshot'
+      ? `Restored the seeded history (${result.runs} runs).`
+      : `Rebuilt the seeded history by reprocessing it (${result.runs} runs).`,
   }
 }
 
@@ -91,7 +153,7 @@ export async function request<T>(
     } catch {
       // Non-JSON error body: keep the status text.
     }
-    throw new ApiError(res.status, code, detail)
+    throw new ApiError(res.status, code, detail, retryAfterSeconds(res))
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
@@ -106,19 +168,6 @@ export function runEventsUrl(runId: number, after?: number): string {
 
 export function auditPdfUrl(runId: number): string {
   return buildUrl(`/runs/${runId}/audit.pdf`, { code: accessCode })
-}
-
-export async function supportsAuditPdf(runId: number, signal?: AbortSignal): Promise<boolean> {
-  if (USE_MOCKS) return false
-  const url = auditPdfUrl(runId)
-  let response = await fetch(url, { method: 'HEAD', signal })
-  if (response.status === 405 || response.status === 501) {
-    response = await fetch(url, { signal })
-    await response.body?.cancel()
-  }
-  if (response.status === 404) return false
-  if (!response.ok) throw new ApiError(response.status, 'audit_pdf_probe', 'Could not check audit PDF availability.')
-  return response.headers.get('content-type')?.includes('application/pdf') ?? false
 }
 
 export function runDocumentUrl(runId: number): string {

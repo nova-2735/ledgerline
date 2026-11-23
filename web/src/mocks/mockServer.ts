@@ -372,7 +372,7 @@ export function mockRequest(method: string, path: string, options: RequestOption
     live.clear()
     previewIds.clear()
     nextId = fixtures.runs.total + 1
-    return { status: 'ok', runs: seeded.length }
+    return { status: 'ok', runs: seeded.length, mode: 'snapshot', duration_ms: 400 } satisfies Schemas['ResetResponse']
   }
   if (method === 'POST' && path === '/policy/preview') return previewPolicy(options.json as Schemas['PolicyPreviewRequest'])
   const review = /^\/runs\/(\d+)\/review$/.exec(path)

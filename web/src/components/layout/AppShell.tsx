@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, setAccessCode } from '@/api/client'
+import { api, resetSummary, setAccessCode } from '@/api/client'
 import { isAccessError, queryKeys, useHealth, useQueue, useRuns } from '@/api/hooks'
 import { ErrorState, LoadingState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -84,12 +84,13 @@ export function AppShell() {
 
   const reset = useMutation({
     mutationFn: api.resetDemo,
-    onSuccess: () => {
+    onSuccess: result => {
       setDialog(null)
       void navigate('/')
       queryClient.removeQueries({ queryKey: ['run'] })
       void queryClient.invalidateQueries({ predicate: query => query.queryKey[0] !== queryKeys.health[0] })
-      toast.success('Demo data reset')
+      const { title, description } = resetSummary(result)
+      toast.success(title, { description })
     },
   })
 
