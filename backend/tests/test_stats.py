@@ -72,7 +72,8 @@ def test_vendors_and_purchase_orders(api: TestClient) -> None:
 
 def test_demo_inbox(api: TestClient) -> None:
     inbox = api.get("/api/demo/inbox").json()
-    assert len(inbox) == 15
+    groups = [i["group"] for i in inbox]
+    assert (groups.count("scenario"), groups.count("stress")) == (15, 10)
     s04 = next(i for i in inbox if i["doc_id"] == "S04")
     assert s04["is_edge_case"] and s04["subject"] == "bill" and s04["processed_run_ids"] == []
     run_id = api.post("/api/demo/runs/S04").json()["run_id"]
@@ -86,7 +87,8 @@ def test_demo_reset_reseeds(api: TestClient) -> None:
     run_id = api.post("/api/demo/runs/S01").json()["run_id"]
     wait_run(api, run_id)
     assert api.get("/api/runs").json()["total"] == 25
-    assert api.post("/api/demo/reset").json() == {"status": "ok", "runs": 24}
+    body = api.post("/api/demo/reset").json()
+    assert (body["status"], body["runs"], body["mode"]) == ("ok", 24, "snapshot")
     assert api.get("/api/runs").json()["total"] == 24
 
 

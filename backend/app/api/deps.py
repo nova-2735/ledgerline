@@ -13,18 +13,21 @@ from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.api import ErrorResponse
 
-# EventSource, <img> and <iframe> can't send headers, so these accept `?code=` instead.
-QUERY_CODE_SUFFIXES = ("/events", "/document", ".png")
+# EventSource, <img>, <iframe> and download links can't send headers, so these accept `?code=`.
+QUERY_CODE_SUFFIXES = ("/events", "/document", ".png", ".pdf")
 
 
 class APIError(Exception):
     """An error rendered as `{"detail": str, "code": str}`."""
 
-    def __init__(self, status_code: int, code: str, detail: str) -> None:
+    def __init__(
+        self, status_code: int, code: str, detail: str, headers: dict[str, str] | None = None
+    ) -> None:
         super().__init__(detail)
         self.status_code = status_code
         self.code = code
         self.detail = detail
+        self.headers = headers
 
 
 def get_db() -> Iterator[Session]:
@@ -56,4 +59,5 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Not found"},
     409: {"model": ErrorResponse, "description": "Conflict with the run's state"},
     422: {"model": ErrorResponse, "description": "Invalid request"},
+    429: {"model": ErrorResponse, "description": "Too many requests or model readings"},
 }

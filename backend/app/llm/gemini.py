@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -144,20 +145,26 @@ class GeminiClient(LLMClient):
         self.model_light = settings.llm_model_light
         self._sdk = sdk
         self._sleep = sleep
+        self._sdk_lock = threading.Lock()
 
     def _client(self) -> Any:
-        if self._sdk is None:
-            key = self.settings.gemini_api_key
-            if key is None or not key.get_secret_value().strip():
-                raise LLMConfigError("GEMINI_API_KEY is not set")
-            from google import genai
-            from google.genai import types
+        with self._sdk_lock:
+            if self._sdk is None:
+                key = self.settings.gemini_api_key
+                if key is None or not key.get_secret_value().strip():
+                    raise LLMConfigError("GEMINI_API_KEY is not set")
+                from google import genai
+                from google.genai import types
 
-            self._sdk = genai.Client(
-                api_key=key.get_secret_value(),
-                http_options=types.HttpOptions(timeout=int(self.settings.llm_timeout_s * 1000)),
-            )
-        return self._sdk
+                self._sdk = genai.Client(
+                    api_key=key.get_secret_value(),
+                    http_options=types.HttpOptions(timeout=int(self.settings.llm_timeout_s * 1000)),
+                )
+            return self._sdk
+
+    def warm(self) -> None:
+        self._client()
+        from google.genai import types  # noqa: F401 - imported for its load time
 
     def _generate(self, model: str, contents: list[Any], config: Any) -> tuple[Any, int, int]:
         """Call generate_content with retries; returns (response, attempts, latency_ms)."""

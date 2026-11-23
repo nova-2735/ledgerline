@@ -24,7 +24,7 @@ from app.models.api import (
 from app.models.decision import Decision
 from app.models.extraction import InvoiceExtraction
 from app.orm import RunRow
-from app.rules.base import ReviewOverrides, build_context
+from app.rules.base import ReviewOverrides, build_context, money_currency
 from app.rules.registry import flatten, run_all
 
 router = APIRouter(tags=["policy"], responses=ERROR_RESPONSES)
@@ -86,6 +86,11 @@ def _decide(db: DB, run: RunRow, policy: Policy) -> Decision:
     """Rules + decide for a stored run under `policy`. The context is built under that policy
     too, so PO inference thresholds and the duplicate window apply; the run's own billing is left
     out of the balances and later runs out of the duplicate history."""
+    with money_currency():
+        return _redecide(db, run, policy)
+
+
+def _redecide(db: DB, run: RunRow, policy: Policy) -> Decision:
     ctx = build_context(
         db,
         InvoiceExtraction.model_validate(run.extraction),

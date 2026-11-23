@@ -91,3 +91,13 @@ def test_compare_fields_counts_missing_lines(world: Path) -> None:
     checks = compare_fields(truth, None)
     lines = [c for c in checks if c.field.startswith("line ")]
     assert len(lines) == 6 and not any(c.ok for c in lines)
+
+
+def test_fake_eval_stress_pack(world: Path) -> None:
+    result = run_eval(only=["U05", "U09", "U10"], stress=True)
+    assert result.pack == "stress"
+    assert [r.doc_id for r in result.results] == ["U05", "U09", "U10"]
+    assert result.correct == 3, [r.problem for r in result.results]
+    u05 = result.results[0]
+    assert u05.fields and all(f.ok for f in u05.fields)  # printed truth, same normalisation
+    assert render(result).startswith("# Evaluation (stress pack)")

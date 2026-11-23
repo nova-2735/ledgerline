@@ -10,7 +10,7 @@ from typing import Any, NamedTuple
 
 from app.config import Settings, get_settings
 from app.llm.base import CallMeta, LLMClient
-from app.llm.budget import CallBudget, get_budget
+from app.llm.budget import CallBudget, client_budget, get_budget
 from app.llm.cache import LLMCache, cache_key
 from app.llm.prompts import load_prompt
 from app.models.extraction import (
@@ -25,11 +25,13 @@ from app.models.extraction import (
 
 from . import confidence
 from .grounding import Grounder, GroundResult, union_bbox
+from .invoice_refs import invoices_in_file, printed_numbers, referenced_invoices
 from .normalize import (
     bank_account_valid,
     canonical_invoice_number,
     canonical_po,
     currency_code,
+    currency_in,
     ifsc_valid,
     invoice_number_valid,
     normalize_account,
@@ -260,7 +262,11 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
     account_ground = g.text(account) if account else GroundResult("none")
     if account and not account_ground.found:
         account_ground = g.text(raw.bank_account_number)
-    bank_ok = bank_account_valid(account) and ifsc_valid(ifsc)
+    currency = currency_code(raw.currency or currency_in(raw.total) or currency_in(raw.subtotal))
+    # Foreign banks have no IFSC (they quote SWIFT or routing codes): check the account alone.
+    bank_ok = bank_account_valid(account) and (
+        ifsc_valid(ifsc) or (ifsc is None and currency != "INR")
+    )
 
     words_field = _field(
         raw.amount_in_words,
@@ -270,6 +276,7 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         [] if words_value is not None or not raw.amount_in_words else ["could not read the words"],
     )
 
+    printed = printed_numbers(doc)
     return InvoiceExtraction(
         doc_type=raw.document_type,
         doc_kind=doc.doc_kind,
@@ -286,7 +293,7 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         place_of_supply=text_field(raw.place_of_supply),
         po_reference=text_field(raw.po_reference),
         po_reference_canonical=canonical_po(raw.po_reference),
-        currency=currency_code(raw.currency),
+        currency=currency,
         line_items=lines,
         subtotal=amount_field(raw.subtotal, ["arithmetic"] if subtotal_ok else []),
         tax=tax,
@@ -304,6 +311,8 @@ def normalise(raw: RawInvoice, meta: ExtractionMeta, doc: DocumentRead) -> Invoi
         bank_name=text_field(raw.bank_name),
         annotations=list(raw.annotations),
         meta=meta,
+        invoices_in_file=invoices_in_file(printed),
+        referenced_invoices=referenced_invoices(printed),
     )
 
 
@@ -334,8 +343,10 @@ def transcribe(
     settings: Settings | None = None,
     cache: LLMCache | None = None,
     budget: CallBudget | None = None,
+    caller: str | None = None,
 ) -> tuple[RawInvoice, CallMeta]:
-    """Get a RawInvoice from the cache or the model (live calls count against the budget)."""
+    """Get a RawInvoice from the cache or the model. A live call counts against the caller's
+    hourly share (when the run came from a known client) and the global hourly budget."""
     settings = settings or get_settings()
     prompt = load_prompt("extract_invoice")
     key = cache_key("extract", doc.sha256, prompt.ref, client.model)
@@ -359,6 +370,8 @@ def transcribe(
             )
             return raw, meta
     if client.is_live:
+        if caller is not None and settings.max_live_llm_calls_per_client_per_hour > 0:
+            client_budget(settings.max_live_llm_calls_per_client_per_hour).acquire(caller)
         (budget or get_budget(settings.max_live_llm_calls_per_hour)).acquire()
     raw, meta = client.extract_invoice(doc_bytes, doc)
     if settings.llm_cache:
@@ -384,6 +397,20 @@ def transcribe(
     return raw, meta
 
 
+def needs_live_reading(sha256: str, force_fresh: bool, settings: Settings | None = None) -> bool:
+    """Would reading this file call the live model (no saved reading, or a fresh one asked)?"""
+    from app.llm.base import get_client
+
+    settings = settings or get_settings()
+    client = get_client(settings)
+    if not client.is_live:
+        return False
+    if force_fresh or not settings.llm_cache:
+        return True
+    key = cache_key("extract", sha256, load_prompt("extract_invoice").ref, client.model)
+    return LLMCache().get(key) is None
+
+
 def _scalar_fields(ex: InvoiceExtraction) -> dict[str, FieldValue]:
     return {
         name: v for name in type(ex).model_fields if isinstance(v := getattr(ex, name), FieldValue)
@@ -399,9 +426,17 @@ def extract(
     settings: Settings | None = None,
     cache: LLMCache | None = None,
     budget: CallBudget | None = None,
+    caller: str | None = None,
 ) -> ExtractResult:
     raw, call = transcribe(
-        doc_bytes, doc_read, client, force_fresh, settings=settings, cache=cache, budget=budget
+        doc_bytes,
+        doc_read,
+        client,
+        force_fresh,
+        settings=settings,
+        cache=cache,
+        budget=budget,
+        caller=caller,
     )
     extraction = normalise(raw, _meta_from_call(call, raw), doc_read)
 

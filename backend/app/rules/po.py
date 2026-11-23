@@ -19,7 +19,7 @@ def _top_line(ctx: RuleContext) -> str:
     if not ctx.po_candidates:
         return ""
     top = ctx.po_candidates[0]
-    return f"{top.po_number} (score {top.score:.2f}: {top.reason})"
+    return f"{top.po_number} (a {round(top.score * 100)}% match: {top.reason})"
 
 
 def _confirmed(ctx: RuleContext, result: CheckResult) -> CheckResult:
@@ -104,7 +104,7 @@ def p02_inference(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             ReasonCode.PO_INFERRED,
             "PO inferred, needs confirmation",
             f"No PO number printed. The best match is {_top_line(ctx)}. "
-            "Confirm the PO to continue.",
+            "An AP clerk should confirm it before the lines are matched.",
             severity=Severity.medium,
             route=Route.ap_clerk,
             hint=Outcome.HOLD,
@@ -124,7 +124,14 @@ def p02_inference(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             evidence=evidence,
         )
         return [_confirmed(ctx, result)]
-    best = f" The closest was {_top_line(ctx)}." if ctx.po_candidates else ""
+    # Name the closest PO only when its items at least partly match; a PO that shares nothing
+    # but the vendor is noise for the reader.
+    closest = ctx.po_candidates[0] if ctx.po_candidates else None
+    best = (
+        f" The closest was {_top_line(ctx)}."
+        if closest and closest.components.get("lines", 0) >= 0.6
+        else ""
+    )
     result = e.fail(
         ReasonCode.PO_MISSING,
         "No PO for this invoice",
@@ -186,10 +193,24 @@ def p04_status(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
 @rule("P05_currency_date", STAGE)
 def p05_currency_date(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     po = ctx.po
+    currency = ctx.extraction.currency
     if po is None:
+        if currency != "INR":
+            return [
+                e.fail(
+                    ReasonCode.CURRENCY_MISMATCH,
+                    f"Invoice is in {currency}, not INR",
+                    f"The invoice is billed in {currency}. Payments and POs are in INR, so "
+                    "finance has to agree the exchange rate and any reverse-charge GST before "
+                    "it can be booked.",
+                    severity=Severity.medium,
+                    route=Route.ap_clerk,
+                    hint=Outcome.HOLD,
+                    evidence={"expected": "INR", "actual": currency},
+                )
+            ]
         return [e.skip("Currency and PO date", "No PO resolved.")]
     out = []
-    currency = ctx.extraction.currency
     if currency != po.currency:
         out.append(
             e.fail(

@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     llm_price_in_per_m: float | None = None
     llm_price_out_per_m: float | None = None
     max_live_llm_calls_per_hour: int = 120
+    max_live_llm_calls_per_client_per_hour: int = Field(default=30, ge=0)  # 0 = no per-client cap
+    rate_limit_runs_per_minute: float = Field(default=10, ge=0)  # 0 = no rate limit
+    rate_limit_burst: int = Field(default=10, gt=0)
     allow_fake_llm: bool = False
 
     ocr_enabled: OCRMode = OCRMode.auto

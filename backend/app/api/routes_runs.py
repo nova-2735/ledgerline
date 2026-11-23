@@ -8,16 +8,18 @@ import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import func, or_, select
 
 from app.api.deps import DB, ERROR_RESPONSES, APIError, not_found
+from app.api.limits import check_reading_budget, limit_run_rate
 from app.api.views import run_detail, run_summary, vendor_names
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.enums import Outcome, Route, RunSource, RunStatus
-from app.ingest.reader import IntakeError
+from app.export.audit_pdf import audit_pdf
+from app.ingest.reader import IntakeError, validate_pdf
 from app.ingest.render import render_page_png
 from app.ingest.storage import ensure_file
 from app.models.api import AuditExport, RunCreated, RunList
@@ -42,16 +44,21 @@ def intake_error(exc: IntakeError) -> APIError:
 @router.post("/runs", status_code=202, response_model=RunCreated)
 async def create_run(
     file: Annotated[UploadFile, File()],
+    caller: Annotated[str, Depends(limit_run_rate)],
     force_fresh: Annotated[bool, Form()] = False,
 ) -> RunCreated:
+    """Checks, in order: rate limit (429), the file itself (413/422), whether a fresh model
+    reading fits this client's and the global hourly budget (429), then starts the run."""
     limit = get_settings().max_upload_mb * 1024 * 1024
     data = await file.read(limit + 1)
     try:
+        info = await asyncio.to_thread(validate_pdf, data)
+        await asyncio.to_thread(check_reading_budget, caller, info.sha256, force_fresh)
         run_id = await asyncio.to_thread(
             runner.submit,
             data,
             file.filename or "invoice.pdf",
-            runner.SubmitMeta(source=RunSource.upload),
+            runner.SubmitMeta(source=RunSource.upload, caller=caller),
             force_fresh=force_fresh,
         )
     except IntakeError as exc:
@@ -206,6 +213,24 @@ def get_run_page(
     ensure_file(doc.sha256, doc.bytes)
     path = render_page_png(doc.sha256, n - 1, max(scale, 0.25))
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+
+
+@router.get(
+    "/runs/{run_id}/audit.pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "Audit record (PDF)"}},
+)
+def get_run_audit_pdf(run_id: int, db: DB, code: str | None = None) -> Response:
+    """One-page summary (decision, key numbers, next step), then checks, extracted fields, stage
+    timeline, review actions and decision history."""
+    run = get_run_row(db, run_id)
+    detail = run_detail(db, run)
+    pdf = audit_pdf(detail, events_after(db, run_id, 0))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{detail.display_id}-audit.pdf"'},
+    )
 
 
 @router.get("/runs/{run_id}/audit", response_model=AuditExport)

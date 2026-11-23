@@ -23,11 +23,12 @@ from app.decide.policy import active_policy
 from app.demo.generate import generate
 from app.demo.invoice import load_specs, load_world
 from app.demo.seed import load_manifest, seed, world_dir
-from app.enums import ActionType, RunSource, StageName
+from app.enums import ActionType, DocKind, RunSource, StageName
+from app.extract.extractor import normalise
 from app.extract.normalize import canonical_po, normalize_gstin, parse_amount
 from app.llm.base import LLMClient, get_client
 from app.models.api import ReviewRequest
-from app.models.extraction import InvoiceExtraction, RawInvoice
+from app.models.extraction import DocumentRead, ExtractionMeta, InvoiceExtraction, RawInvoice
 from app.models.run import RunDetail
 from app.orm import RunRow
 from app.pipeline import runner
@@ -128,6 +129,7 @@ class EvalResult:
     policy_version: str | None
     results: list[ScenarioResult]
     notes: list[str] = field(default_factory=list)
+    pack: str = "scenarios"  # or "stress": the unseen documents U01–U10
 
     @property
     def correct(self) -> int:
@@ -197,8 +199,30 @@ def actual_fields(ex: InvoiceExtraction) -> dict[str, Any]:
     }
 
 
+def _printed_fields(truth: dict[str, Any]) -> dict[str, Any]:
+    """Stress documents have no generator figures: the truth is the printed strings, read
+    through the same normalisation as the model's transcription."""
+    raw = RawInvoice.model_validate(truth["raw"])
+    doc = DocumentRead(
+        sha256="0" * 64, pages=[], doc_kind=DocKind.digital, ocr_available=False, page_count=1
+    )
+    meta = ExtractionMeta(
+        provider="truth",
+        model="truth",
+        prompt_id="extract_invoice",
+        prompt_version="truth",
+        latency_ms=0,
+        input_tokens=None,
+        output_tokens=None,
+        cached=False,
+        cached_at=None,
+        raw=raw,
+    )
+    return actual_fields(normalise(raw, meta, doc))
+
+
 def compare_fields(truth: dict[str, Any], ex: InvoiceExtraction | None) -> list[FieldCheck]:
-    exp = expected_fields(truth)
+    exp = expected_fields(truth) if "expected_values" in truth else _printed_fields(truth)
     act = actual_fields(ex) if ex is not None else {"lines": []}
     checks = [FieldCheck(k, _s(exp.get(k)), _s(act.get(k))) for k in SCALAR_FIELDS]
     for i, line in enumerate(exp["lines"]):
@@ -226,7 +250,7 @@ def _close_db() -> None:
 def build_template() -> Path:
     """Generate the world if needed and seed a database; returns the saved template file."""
     world = world_dir()
-    if not (world / "manifest.json").is_file():
+    if not (world / "unseen").is_dir():  # a world from before the stress pack is regenerated
         generate(world)
     db.init_db()
     seed()
@@ -349,21 +373,41 @@ def _budget_spent(result: ScenarioResult) -> bool:
     return bool(result.error and "hourly limit" in result.error)
 
 
+def stress_specs(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Spec metadata for U01–U10 from the manifest. Codes a live reading may add (low
+    confidence on a photo) count as allowed."""
+    out = {}
+    for doc_id, info in manifest["documents"].items():
+        if info["kind"] != "stress":
+            continue
+        exp = dict(info["expected"])
+        exp["allowed"] = list(exp.get("allowed", [])) + list(exp.get("live_also", []))
+        out[doc_id] = {"title": info["title"], "edge_case": info.get("unusual"), "expected": exp}
+    return dict(sorted(out.items()))
+
+
 def run_eval(
     only: list[str] | None = None,
     repeat: int = 1,
     force_fresh: bool = False,
     client: LLMClient | None = None,
     sleep: Any = time.sleep,
+    stress: bool = False,
 ) -> EvalResult:
-    """Run the scenarios against the configured provider (`LLM_PROVIDER`)."""
+    """Run the scenarios (or, with `stress`, the unseen documents U01–U10) against the
+    configured provider (`LLM_PROVIDER`)."""
     settings = get_settings()
     template = build_template()
     world = world_dir()
     manifest = load_manifest(world)
-    specs = {s.id: s.meta for s in load_specs(load_world())}
+    if stress:
+        specs = stress_specs(manifest)
+        pool = list(specs)
+    else:
+        specs = {s.id: s.meta for s in load_specs(load_world())}
+        pool = INBOX
     client = client or get_client(settings)
-    ids = [d for d in INBOX if not only or d in only]
+    ids = [d for d in pool if not only or d in only]
     out = EvalResult(
         provider=client.provider,
         model=client.model,
@@ -371,6 +415,7 @@ def run_eval(
         force_fresh=force_fresh,
         policy_version=active_policy().policy_version,
         results=[],
+        pack="stress" if stress else "scenarios",
     )
     stopped = False
     for doc_id in ids:

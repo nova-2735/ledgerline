@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+import threading
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -45,6 +48,10 @@ class LLMRequestError(LLMError):
 
 class LLMResponseError(LLMError):
     """The provider answered, but not with output we can use."""
+
+
+class ClientBudgetExceededError(LLMError):
+    """One client's share of the hourly live-call budget is used up."""
 
 
 class BudgetExceededError(LLMError):
@@ -159,6 +166,27 @@ class LLMClient(ABC):
     def polish(self, summary: str, facts: dict[str, Any]) -> tuple[str, CallMeta]:
         """Rewrite a template summary. The caller decides whether the rewrite is safe to use."""
 
+    def warm(self) -> None:  # noqa: B027 - optional hook, a no-op for offline clients
+        """Load the provider SDK and build its connection client ahead of the first call."""
+
+
+# Live clients are shared by every run of the process: one SDK import, one connection pool
+# (keep-alive, no TLS handshake per run). Keyed by the settings that shape the client.
+_live_clients: dict[tuple[str, ...], LLMClient] = {}
+_live_lock = threading.Lock()
+
+
+def _client_key(settings: Settings) -> tuple[str, ...]:
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    return (
+        settings.llm_provider.value,
+        settings.llm_model,
+        settings.llm_model_light,
+        str(settings.llm_timeout_s),
+        settings.llm_thinking,
+        hashlib.sha256(key.encode()).hexdigest(),
+    )
+
 
 def get_client(settings: Settings) -> LLMClient:
     if settings.llm_provider is LLMProvider.fake:
@@ -168,5 +196,24 @@ def get_client(settings: Settings) -> LLMClient:
     if settings.llm_provider is LLMProvider.gemini:
         from .gemini import GeminiClient
 
-        return GeminiClient(settings)
+        key = _client_key(settings)
+        with _live_lock:
+            client = _live_clients.get(key)
+            if client is None:
+                _live_clients.clear()  # settings changed: drop the old client
+                client = _live_clients[key] = GeminiClient(settings)
+        return client
     raise LLMConfigError(f"provider {settings.llm_provider.value} is not available in this build")
+
+
+def warm_client(settings: Settings) -> int | None:
+    """Build the live client now (SDK import + connection client) so the first run doesn't pay
+    for it. Returns the time taken in ms, or None when there is nothing to warm or it failed."""
+    if settings.llm_provider is LLMProvider.fake:
+        return None
+    start = time.perf_counter()
+    try:
+        get_client(settings).warm()
+    except Exception:
+        return None
+    return int((time.perf_counter() - start) * 1000)

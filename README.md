@@ -44,9 +44,11 @@ On the 15 demo scenarios with fresh Gemini readings (`gemini-3.5-flash-lite`):
 |---|---|
 | Correct decisions | **15 / 15** |
 | Invoice fields read correctly | **237 / 237** (incl. 33 / 33 on the two scanned invoices) |
-| Model reading time per invoice | about 3 s (p50 2.8 s, p95 3.7 s) |
+| Model reading time per invoice | about 2 s (p50 2.1 s, p95 3.3 s) |
 
-Details, method and caveats: [docs/EVAL.md](docs/EVAL.md).
+Details, method and caveats: [docs/EVAL.md](docs/EVAL.md). Ten unseen, deliberately different
+documents (sideways scan, phone photo, USD invoice, credit note, two invoices in one PDF and
+more) are in the demo inbox as the stress group: [docs/ROBUSTNESS.md](docs/ROBUSTNESS.md).
 
 ## Four edge cases worth looking at
 
@@ -83,9 +85,11 @@ Key settings in `.env`:
 | `APP_TODAY` | Pins "today" (the demo world expects `2026-11-20`) |
 | `DEMO_ACCESS_CODE` | Optional access code for a shared deployment |
 | `MAX_UPLOAD_MB`, `MAX_PAGES` | Upload limits |
+| `RATE_LIMIT_RUNS_PER_MINUTE`, `MAX_LIVE_LLM_CALLS_PER_CLIENT_PER_HOUR` | Per-address limits on starting runs and on live model readings |
 
 Other useful targets: `make check` (lint, types, tests, web build), `make eval` (offline
-evaluation against ground truth), `make eval-live` (same with fresh model readings), `make reset`.
+evaluation against ground truth), `make eval-live` (same with fresh model readings),
+`make eval-stress` / `make eval-stress-live` (the ten unseen documents), `make reset`.
 
 **Docker:** `docker compose up --build`, then open <http://localhost:8000>. The image seeds the
 demo world at build time and serves the API and the web app from one container.
@@ -113,7 +117,8 @@ scripts/         smoke test for a deployment
 ```
 
 More: [architecture](docs/ARCHITECTURE.md) · [design decisions](docs/DECISIONS.md) ·
-[assumptions](docs/ASSUMPTIONS.md) · [evaluation](docs/EVAL.md).
+[assumptions](docs/ASSUMPTIONS.md) · [evaluation](docs/EVAL.md) ·
+[robustness](docs/ROBUSTNESS.md) · [performance](docs/PERFORMANCE.md).
 
 ## Limitations and next steps
 

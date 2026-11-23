@@ -14,12 +14,14 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from app.demo.money import format_indian
-from app.enums import ActionType, ReasonCode, Route
+from app.enums import ActionType, DocType, ReasonCode, Route
+from app.extract.normalize import canonical_invoice_number
 from app.models.checks import CheckResult
 from app.models.decision import Handoff
 from app.models.extraction import InvoiceExtraction
 from app.models.reference import POLine, PurchaseOrder, Vendor
 from app.rules.base import RuleContext, decimal_value, inr, q2, qty, text_value
+from app.rules.document import effective_doc_type
 
 A = ActionType
 C = ReasonCode
@@ -50,6 +52,19 @@ ROUTE_LABELS = {
     Route.procurement: "procurement",
     Route.controller: "finance controller",
     Route.vendor: "vendor",
+}
+
+
+# Who acts, as written inside a sentence ("Hold for procurement", "an AP clerk should …").
+OWNER_PHRASES = {
+    Route.none: "no one",
+    Route.ap_clerk: "an AP clerk",
+    Route.buyer: "the buyer",
+    Route.receiving: "the receiving team",
+    Route.treasury: "treasury",
+    Route.procurement: "procurement",
+    Route.controller: "the finance controller",
+    Route.vendor: "the vendor",
 }
 
 
@@ -112,6 +127,27 @@ class Facts:
     def total(self) -> Decimal | None:
         return decimal_value(self.extraction.total)
 
+    @property
+    def doc_label(self) -> str:
+        """What the document is, in a sentence: invoice, credit note, delivery challan …"""
+        kind = effective_doc_type(self.extraction)
+        if kind == DocType.tax_invoice:
+            return "invoice"
+        if kind in (DocType.credit_note, DocType.debit_note, DocType.proforma_invoice):
+            return kind.value.replace("_", " ")
+        title = (self.extraction.meta.raw.document_title or "").strip()
+        return title.lower() if title else "document"
+
+    @property
+    def po_shown(self) -> PurchaseOrder | None:
+        """The PO to name in a summary: printed on the invoice or confirmed by a reviewer, never
+        one that is only inferred, and none for a document that isn't billed against a PO."""
+        if self.po is None or self.doc_label != "invoice":
+            return None
+        if self.ctx is None or self.ctx.po_method == "explicit" or self.ctx.po_confirmed:
+            return self.po
+        return None
+
     def po_line(self, line_no: Any) -> POLine | None:
         if self.po is None or not isinstance(line_no, int):
             return None
@@ -122,6 +158,8 @@ class Facts:
             "vendor": self.vendor_name,
             "supplier_name": self.supplier_name,
             "number": self.number or "(no number)",
+            "invoice": f"invoice {self.number}" if self.number else "the invoice",
+            "Invoice": f"Invoice {self.number}" if self.number else "The invoice",
             "total": inr(self.total),
             "po": self.po.po_number if self.po else "the PO",
             "limit": format_indian(q2(self.approval_limit)),
@@ -173,7 +211,7 @@ def _po_inferred(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[st
         "buyer": po.buyer_name if po else "buyer unknown",
         "po_date": fmt_date(po.po_date) if po else "date unknown",
         "k": len(cands),
-        "score": f"{float(top.get('score', 0)):.2f}",
+        "score": f"{round(float(top.get('score', 0)) * 100)}%",
     }
 
 
@@ -183,7 +221,11 @@ def _po_ambiguous(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[s
 
 
 def _po_missing(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
-    return {"buyer_or_procurement": "the buyer" if f.vendor else "procurement"}
+    printed = text_value(f.extraction.po_reference)
+    return {
+        "buyer_or_procurement": "the buyer" if f.vendor else "procurement",
+        "printed": f"“{printed}”" if printed else "the printed reference",
+    }
 
 
 def _available(c: CheckResult, f: Facts) -> tuple[Decimal, Decimal, POLine | None]:
@@ -219,10 +261,14 @@ def _qty_remaining(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[
 
 
 def _qty_received(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    risk = ""
+    if c.amount_at_risk is not None:
+        risk = f", so {inr(c.amount_at_risk)} of this invoice isn't backed by a goods receipt"
     return {
         "po": c.evidence.get("po_number", "the PO"),
         "n": c.evidence.get("line_no", "?"),
         "received": qty(_dec(c.evidence.get("received"))),
+        "risk_clause": risk,
     }
 
 
@@ -300,9 +346,13 @@ def _blocked(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, A
     return {"block_reason": c.evidence.get("block_reason") or "see vendor master"}
 
 
+def _and(items: list[str]) -> str:
+    return " and ".join(", ".join(items).rsplit(", ", 1)) if items else ""
+
+
 def _low_confidence(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
     fields = [x.get("label", x.get("field", "")) for x in c.evidence.get("fields", [])]
-    return {"fields": ", ".join(fields) or "the highlighted fields"}
+    return {"fields": _and(fields) or "highlighted fields"}
 
 
 def _proforma(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
@@ -318,12 +368,85 @@ def _none(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]
     return {}
 
 
+_OUTCOME_WORDS = {"APPROVE": "approved", "REJECT": "rejected", "HOLD": "on hold"}
+
+
+def _adjustment_note(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    """Credit or debit note: which invoice it adjusts, and whether we have that invoice."""
+    debit = f.extraction.doc_type == DocType.debit_note
+    refs = f.extraction.referenced_invoices
+    clause = link = ""
+    if refs:
+        ref = refs[0]
+        canon = canonical_invoice_number(ref)
+        rows = f.ctx.ledger_rows if f.ctx is not None else []
+        row = next((r for r in rows if r.invoice_number_canonical == canon), None)
+        if row is not None:
+            status = _OUTCOME_WORDS.get(row.final_outcome.value if row.final_outcome else "", "")
+            status = status or "still open"
+            clause = f" against invoice {ref} ({row.display_id or f'run {row.run_id}'}, {status})"
+        else:
+            clause = f" against invoice {ref}, which we have no record of"
+        link = f" and link it to invoice {ref}"
+    owner = possessive(f.vendor_name)
+    if debit:
+        ask = "Was this extra charge agreed?"
+        todo = (
+            "An AP clerk should check the extra charge of {total} with the buyer before it is "
+            "paid{link}; it isn't matched to a PO automatically."
+        )
+    else:
+        ask = "Record it against their account instead of paying it?"
+        todo = (
+            "Don't pay this: an AP clerk should book the credit of {total} to {owner} account "
+            "so it reduces their next payment{link}, then close it here."
+        )
+    return {
+        "note_kind": "debit note" if debit else "credit note",
+        "original_clause": clause,
+        "ask": ask,
+        "todo": todo.format(total=inr(f.total), owner=owner, link=link),
+    }
+
+
+def _not_invoice(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    title = (f.extraction.meta.raw.document_title or "").strip()
+    kind = title.lower() if title else "document"
+    po = text_value(f.extraction.po_reference)
+    if "challan" in kind or "delivery" in kind:
+        next_step = (
+            "If the goods have arrived, receiving can use it to record the goods receipt; the "
+            "tax invoice should follow separately."
+        )
+    else:
+        next_step = "File it with the vendor's records and ask for the tax invoice if one is due."
+    return {
+        "doc_kind": kind,
+        "po_clause": f" for {po}" if po else "",
+        "next_step": next_step,
+    }
+
+
+def _multiple(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    found = [str(x) for x in c.evidence.get("invoices") or []]
+    return {"n": len(found), "numbers": " and ".join(", ".join(found).rsplit(", ", 1))}
+
+
+def _currency(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
+    return {"currency": c.evidence.get("actual") or f.extraction.currency}
+
+
 def _posting_gaps(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
     return {"gaps": "; ".join(c.evidence.get("gaps") or []) or "some values are missing"}
 
 
 def _generic(c: CheckResult, f: Facts, active: list[CheckResult]) -> dict[str, Any]:
-    return {"message": c.message, "owner": ROUTE_LABELS.get(c.route, "reviewer")}
+    owner = OWNER_PHRASES.get(c.route, "the reviewer")
+    return {"message": c.message, "owner": owner[0].upper() + owner[1:]}
+
+
+def possessive(name: str) -> str:
+    return f"{name}'" if name.endswith("s") else f"{name}'s"
 
 
 # --- templates -----------------------------------------------------------------------------------
@@ -343,35 +466,50 @@ class Template:
     vendor_ask: str = ""  # the vendor email's request, a format string
 
 
-_VENDOR_Q = "Send this back to {vendor} for a corrected invoice?"
+_VENDOR_Q = "Send {invoice} ({total}) back to {vendor} for a corrected one?"
 
 TEMPLATES: dict[ReasonCode, Template] = {
     C.BANK_DETAILS_CHANGED: Template(
-        "Did {vendor} really change their bank account to {new_masked} ({new_bank})?",
-        "Call {vendor} on the number on file ({phone_on_file}) — not the number on this invoice "
-        "({phone_invoice}) — and confirm. Update the vendor master through change control before "
-        "any payment.",
+        "Did {vendor} really move their bank account to {new_masked} ({new_bank})? The {total} "
+        "on this invoice would be paid there.",
+        "Treasury should call {vendor} on the number on file ({phone_on_file}), not the number on "
+        "this invoice ({phone_invoice}), and confirm the change. Update the vendor master through "
+        "change control before any payment.",
         (A.verify_bank, A.reject),
         _bank,
         draft="internal",
         internal_to=Route.treasury,
     ),
     C.PO_INFERRED: Template(
-        "Is this invoice for {po} ({buyer}, {po_date})? It's the best fit among {k} open POs for "
-        "{vendor} (score {score}).",
-        "Confirm the PO to continue matching.",
+        "No PO is printed on {invoice} from {vendor} ({total}). Is it for {po} ({buyer}, raised "
+        "{po_date})? That's the best fit among {k} open POs for {vendor}, a {score} match.",
+        "An AP clerk should confirm the PO, or pick the right one; the lines are then matched "
+        "against it.",
         (A.confirm_po, A.reject),
         _po_inferred,
     ),
     C.PO_AMBIGUOUS: Template(
-        "Which PO is this invoice for: {po_a} or {po_b}?",
-        "Pick the PO; matching will re-run.",
+        "Which PO is {invoice} from {vendor} ({total}) for: {po_a} or {po_b}? Both fit equally "
+        "well.",
+        "An AP clerk should pick the PO; the lines are then matched against it.",
         (A.confirm_po, A.reject),
         _po_ambiguous,
     ),
     C.PO_MISSING: Template(
-        "There's no purchase order that fits this invoice. Was this purchase approved?",
-        "Ask {buyer_or_procurement} to raise or point to a PO.",
+        "{Invoice} from {vendor} for {total} names no PO, and none of their open POs fits it. "
+        "Was this purchase approved, and under which PO?",
+        "Ask {buyer_or_procurement} which PO covers this {total}, or to raise one; it isn't paid "
+        "until then.",
+        (A.confirm_po, A.reject),
+        _po_missing,
+        draft="internal",
+        internal_to=Route.buyer,
+    ),
+    C.PO_NOT_FOUND: Template(
+        "{Invoice} from {vendor} for {total} quotes PO {printed}, which isn't in our records, and "
+        "none of their open POs fits it. Which PO does it bill?",
+        "Ask {buyer_or_procurement} which PO covers this {total}, or to raise one; it isn't paid "
+        "until then.",
         (A.confirm_po, A.reject),
         _po_missing,
         draft="internal",
@@ -379,9 +517,10 @@ TEMPLATES: dict[ReasonCode, Template] = {
     ),
     C.QTY_EXCEEDS_PO_REMAINING: Template(
         "{vendor} billed {qty} {uom} on {po} line {n}, but only {remaining} remain on the PO and "
-        "{available} are received and unbilled. Pay {available} now?",
-        "Approve {available} {uom} ({partial_amount} incl. tax) and request a credit note for "
-        "{excess}.",
+        "{available} are received and unbilled. Pay for {available} now ({partial_amount} incl. "
+        "tax) instead of the full {total}?",
+        "The buyer can approve {available} {uom} ({partial_amount} incl. tax) and ask {vendor} "
+        "for a credit note for the other {excess}.",
         (A.approve, A.send_to_vendor, A.reject),
         _qty_remaining,
         draft="vendor",
@@ -391,8 +530,10 @@ TEMPLATES: dict[ReasonCode, Template] = {
         "received. Please send a credit note for {excess} {uom}.",
     ),
     C.QTY_EXCEEDS_RECEIVED: Template(
-        "Has the rest of {po} line {n} arrived? We've only recorded {received} received.",
-        "Ask receiving to post the GRN, or hold until delivery.",
+        "Has the rest of {po} line {n} arrived? We've only recorded {received} received"
+        "{risk_clause}.",
+        "The receiving team should post the goods receipt for what has arrived; the rest stays "
+        "unpaid until it does.",
         (A.approve, A.reject),
         _qty_received,
         draft="internal",
@@ -401,7 +542,8 @@ TEMPLATES: dict[ReasonCode, Template] = {
     C.PRICE_VARIANCE_OVER_TOL: Template(
         "{vendor} billed {inv_price} vs PO {po_price} ({pct}% higher, {delta} + tax). Was a price "
         "change agreed?",
-        "Approve at invoice price if agreed, else request a credit note of {delta_incl_tax}.",
+        "The buyer should confirm whether the new price was agreed: approve at the invoice price "
+        "if it was, otherwise ask {vendor} for a credit note of {delta_incl_tax}.",
         (A.approve, A.send_to_vendor),
         _price,
         draft="vendor",
@@ -431,9 +573,9 @@ TEMPLATES: dict[ReasonCode, Template] = {
         "invoice that includes it.",
     ),
     C.DUPLICATE_SAME_INVOICE: Template(
-        "This matches {original_number} from {vendor}, {original_outcome} on {original_date} "
-        "({original_run}). Reject this copy?",
-        "Reject; tell the vendor it's already been processed.",
+        "This {total} invoice matches {original_number} from {vendor}, {original_outcome} on "
+        "{original_date} ({original_run}). Reject this copy?",
+        "Reject it so it isn't paid twice, and tell {vendor} it was already processed.",
         (A.reject, A.not_duplicate),
         _duplicate,
         draft="vendor",
@@ -443,47 +585,83 @@ TEMPLATES: dict[ReasonCode, Template] = {
         "supply.",
     ),
     C.DUPLICATE_SUSPECTED: Template(
-        "Is this the same bill as {original_number} ({original_date}, {original_total})?",
-        "Compare the two; reject if same.",
+        "Is this {total} invoice the same bill as {original_number} ({original_date}, "
+        "{original_total})?",
+        "An AP clerk should compare the two side by side: reject this one if it's the same bill, "
+        "otherwise mark it as not a duplicate.",
         (A.not_duplicate, A.reject),
         _duplicate,
     ),
     C.VENDOR_NOT_FOUND: Template(
-        "{supplier_name} isn't in the vendor master{po_clause}. Should it be onboarded?",
-        "Send to procurement for onboarding checks; don't pay until approved.",
+        "{supplier_name} isn't in the vendor master{po_clause}, so its invoice for {total} can't "
+        "be paid. Should it be onboarded?",
+        "Procurement should run the onboarding checks (tax registration, PAN, bank account) and "
+        "add the vendor, or reject the invoice; nothing is paid until then.",
         (A.reject, A.approve),
         _vendor_not_found,
         draft="internal",
         internal_to=Route.procurement,
     ),
     C.VENDOR_BLOCKED: Template(
-        "{vendor} is blocked in the vendor master. Keep this invoice rejected?",
+        "{vendor} is blocked in the vendor master. Keep this {total} invoice rejected?",
         "Don't pay. Vendor blocked: {block_reason}.",
         (A.reopen,),
         _blocked,
     ),
     C.FIELD_LOW_CONFIDENCE: Template(
-        "Please check {fields} against the highlighted areas of the scan.",
-        "Verify or correct the highlighted values.",
+        "Part of the document is hard to read: please check the {fields} against the highlighted "
+        "areas (total as read: {total}).",
+        "An AP clerk should confirm each highlighted value against the document or correct it; "
+        "nothing is paid until then.",
         (A.correct_fields,),
         _low_confidence,
     ),
     C.APPROVAL_LIMIT_EXCEEDED: Template(
         "Approve payment of {total} to {vendor}? Everything matches; it's above the ₹{limit} "
         "auto-approval limit.",
-        "Controller approval.",
+        "The finance controller should approve or reject the payment of {total}.",
         (A.approve, A.reject),
         _none,
     ),
     C.POSTING_INCOMPLETE: Template(
-        "Everything checks out, but the invoice can't be posted: {gaps}. Can you correct it "
-        "from the document?",
-        "Correct the missing values from the document, or return the invoice to the vendor.",
+        "Everything checks out, but the {total} invoice can't be posted: {gaps}. Can you "
+        "correct it from the document?",
+        "An AP clerk should correct the missing values from the document, or return the invoice "
+        "to the vendor.",
         (A.correct_fields, A.send_to_vendor, A.reject),
         _posting_gaps,
     ),
+    C.DOC_CREDIT_NOTE: Template(
+        "{vendor} sent a {note_kind} ({number}) for {total}{original_clause}. {ask}",
+        "{todo}",
+        (A.reject,),
+        _adjustment_note,
+    ),
+    C.DOC_NOT_INVOICE: Template(
+        "This is a {doc_kind} from {supplier_name}{po_clause}, not an invoice, so there is "
+        "nothing to pay. Keep it out of the payment queue?",
+        "Nothing to pay. {next_step}",
+        (A.reopen,),
+        _not_invoice,
+    ),
+    C.DOC_MULTIPLE_INVOICES: Template(
+        "This file from {supplier_name} holds {n} invoices ({numbers}; the first reads {total}). "
+        "Split it and send each invoice through on its own?",
+        "An AP clerk should save each invoice as its own PDF and upload them separately, then "
+        "reject this combined file so nothing is paid from it twice.",
+        (A.reject,),
+        _multiple,
+    ),
+    C.CURRENCY_MISMATCH: Template(
+        "{vendor} billed {total} in {currency}, but we book and pay in INR. Has finance agreed "
+        "the exchange rate and any reverse-charge GST?",
+        "Finance should confirm the INR amount and the reverse-charge GST before this is booked; "
+        "otherwise ask {vendor} to bill in INR.",
+        (A.send_to_vendor, A.reject),
+        _currency,
+    ),
     C.DOC_PROFORMA: Template(
-        _VENDOR_Q,
+        "Ask {vendor} for the tax invoice in place of proforma {number} ({total})?",
         "Proforma invoices aren't payable; ask {vendor} for the tax invoice{secondary}.",
         (A.send_to_vendor,),
         _proforma,
@@ -495,7 +673,6 @@ TEMPLATES: dict[ReasonCode, Template] = {
 }
 # Codes that share a template (RULES §4 groups them).
 for _alias, _base in (
-    (C.PO_NOT_FOUND, C.PO_MISSING),
     (C.GOODS_NOT_RECEIVED, C.QTY_EXCEEDS_RECEIVED),
     (C.AMOUNT_VARIANCE_OVER_TOL, C.PRICE_VARIANCE_OVER_TOL),
     (C.FIELD_MISSING_INVOICE_DATE, C.FIELD_MISSING_INVOICE_NUMBER),
@@ -514,8 +691,8 @@ _GENERIC_VENDOR = Template(
     vendor_ask="We can't process it yet: {message} Please send a corrected invoice.",
 )
 _GENERIC_INTERNAL = Template(
-    "{message} Can this go ahead?",
-    "The {owner} should review and approve or reject.",
+    "{message} Should this {total} invoice go ahead?",
+    "{owner} should review it and approve or reject.",
     (A.approve, A.reject),
     _generic,
 )

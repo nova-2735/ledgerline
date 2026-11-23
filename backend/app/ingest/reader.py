@@ -44,27 +44,59 @@ def _open(data: bytes) -> pymupdf.Document:
     try:
         return pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:
-        raise IntakeError("corrupt", "The PDF file is damaged and can't be opened.") from exc
+        raise IntakeError(
+            "corrupt",
+            "This PDF is damaged and can't be opened. Ask the vendor to send it again.",
+        ) from exc
+
+
+def _check_bytes(data: bytes) -> None:
+    """Size and magic bytes, before anything tries to parse the file. A PDF header may follow up
+    to 1 KB of leading bytes (as PDF readers allow); anything else is not a PDF."""
+    settings = get_settings()
+    limit = settings.max_upload_mb * 1024 * 1024
+    if not data:
+        raise IntakeError("not_pdf", "The file is empty. Upload the invoice as a PDF.")
+    if len(data) > limit:
+        raise IntakeError(
+            "too_large",
+            f"The file is larger than the {settings.max_upload_mb} MB limit. Send just the "
+            "invoice pages, or a smaller scan.",
+        )
+    if PDF_MAGIC not in data[:1024]:
+        raise IntakeError(
+            "not_pdf",
+            "This file isn't a PDF. Upload the invoice as a PDF; a photo or scan can be saved "
+            "as PDF first.",
+        )
+
+
+def _check_document(doc: pymupdf.Document) -> int:
+    """Page count of an opened PDF that passes the intake checks."""
+    max_pages = get_settings().max_pages
+    if doc.needs_pass or doc.is_encrypted or doc.metadata.get("encryption"):
+        raise IntakeError(
+            "encrypted",
+            "This PDF is password-protected, so it can't be read. Ask the vendor for an "
+            "unprotected copy, or remove the password and upload it again.",
+        )
+    if doc.page_count < 1:
+        raise IntakeError("corrupt", "This PDF has no pages.")
+    if doc.page_count > max_pages:
+        raise IntakeError(
+            "too_many_pages",
+            f"This PDF has {doc.page_count} pages; the limit is {max_pages}. Upload just the "
+            "invoice pages.",
+        )
+    return int(doc.page_count)
 
 
 def validate_pdf(data: bytes) -> PdfInfo:
     """Check upload limits and that the bytes are a readable, unencrypted PDF."""
-    settings = get_settings()
-    limit = settings.max_upload_mb * 1024 * 1024
-    if len(data) > limit:
-        raise IntakeError("too_large", f"The file is larger than {settings.max_upload_mb} MB.")
-    if PDF_MAGIC not in data[:1024]:
-        raise IntakeError("not_pdf", "The file is not a PDF.")
+    _check_bytes(data)
     with _open(data) as doc:
-        if doc.needs_pass or doc.is_encrypted or doc.metadata.get("encryption"):
-            raise IntakeError("encrypted", "The PDF is password-protected or encrypted.")
-        if doc.page_count < 1:
-            raise IntakeError("corrupt", "The PDF has no pages.")
-        if doc.page_count > settings.max_pages:
-            raise IntakeError(
-                "too_many_pages", f"The PDF has more than {settings.max_pages} pages."
-            )
-        return PdfInfo(hashlib.sha256(data).hexdigest(), len(data), doc.page_count)
+        pages = _check_document(doc)
+    return PdfInfo(hashlib.sha256(data).hexdigest(), len(data), pages)
 
 
 def _clamp(v: float) -> float:
@@ -124,19 +156,21 @@ def _read_page(page: pymupdf.Page, index: int, use_ocr: bool) -> PageRead:
 
 
 def read_bytes(data: bytes, ocr: bool | None = None) -> DocumentRead:
-    """Read a PDF already in memory. `ocr` overrides OCR_ENABLED (None = use settings)."""
-    info = validate_pdf(data)
+    """Read a PDF already in memory (opened once: checks, text, words and OCR). `ocr` overrides
+    OCR_ENABLED (None = use settings)."""
+    _check_bytes(data)
     use_ocr = should_ocr() if ocr is None else ocr
     with _open(data) as doc:
-        pages = [_read_page(doc[i], i, use_ocr) for i in range(info.page_count)]
+        count = _check_document(doc)
+        pages = [_read_page(doc[i], i, use_ocr) for i in range(count)]
     kinds = {p.kind for p in pages}
     doc_kind = kinds.pop() if len(kinds) == 1 else DocKind.mixed
     return DocumentRead(
-        sha256=info.sha256,
+        sha256=hashlib.sha256(data).hexdigest(),
         pages=pages,
         doc_kind=doc_kind,
         ocr_available=ocr_available(),
-        page_count=info.page_count,
+        page_count=count,
     )
 
 

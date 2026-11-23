@@ -17,7 +17,7 @@ from app.models.checks import CheckResult
 from app.models.decision import Explanation, Message
 from app.rules.base import inr
 
-from .handoff import ROUTE_LABELS, Facts
+from .handoff import OWNER_PHRASES, Facts
 
 OUTCOME_WORDS = {
     Outcome.APPROVE: "approv",
@@ -37,8 +37,9 @@ _NEGATED = r"\b(?:not|no|never|don't|do not|doesn't|does not|shouldn't|should no
 
 def _what(facts: Facts) -> str:
     number = f" {facts.number}" if facts.number else ""
-    po = f" against {facts.po.po_number}" if facts.po else ""
-    return f"{facts.vendor_name} invoice{number} for {inr(facts.total)}{po}"
+    amount = f" for {inr(facts.total)}" if facts.total is not None else ""
+    po = f" against {facts.po_shown.po_number}" if facts.po_shown else ""
+    return f"{facts.vendor_name} {facts.doc_label}{number}{amount}{po}"
 
 
 def template_summary(
@@ -57,7 +58,7 @@ def template_summary(
     reason = primary.message if primary else ""
     tally = f"{passed} of {counted} checks passed."
     if outcome == Outcome.HOLD:
-        return f"Hold for the {ROUTE_LABELS[route]}: {_what(facts)}. {reason} {tally}"
+        return f"Hold for {OWNER_PHRASES[route]}: {_what(facts)}. {reason} {tally}"
     if outcome == Outcome.RETURN:
         return f"Return to vendor: {_what(facts)}. {reason} {tally}"
     return f"Reject: {_what(facts)}. {reason} {tally}"

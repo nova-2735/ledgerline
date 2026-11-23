@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
@@ -21,6 +22,7 @@ from app.api.deps import APIError, require_access
 from app.config import get_settings
 from app.demo.snapshot import restore_if_missing
 from app.ingest.ocr import ocr_available
+from app.llm.base import warm_client
 from app.models.api import HealthResponse
 from app.pipeline import runner
 
@@ -63,7 +65,9 @@ def _status_code_name(status_code: int) -> str:
 def _install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error(_: Request, exc: APIError) -> JSONResponse:
-        return JSONResponse(_error_body(exc.detail, exc.code), status_code=exc.status_code)
+        return JSONResponse(
+            _error_body(exc.detail, exc.code), status_code=exc.status_code, headers=exc.headers
+        )
 
     @app.exception_handler(runner.ResetInProgress)
     async def reset_in_progress(_: Request, exc: runner.ResetInProgress) -> JSONResponse:
@@ -122,11 +126,20 @@ def startup_line(restored: bool) -> str:
     )
 
 
+def _warm_model_client() -> None:
+    took = warm_client(get_settings())
+    if took is not None:
+        log.info(f"Model client ready in {took} ms")
+
+
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     restored = restore_if_missing(get_settings())
     db.init_db()
     log.info(startup_line(restored))
+    # Load the provider SDK off the request path: on a small instance its import takes seconds,
+    # which the first live run would otherwise wait for.
+    threading.Thread(target=_warm_model_client, name="warm-llm", daemon=True).start()
     yield
     from app.pipeline import runner
 

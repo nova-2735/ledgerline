@@ -112,3 +112,51 @@ used a cached reading is labelled "cached" in the UI and in its events, and "Pro
 read" bypasses the cache. An hourly budget caps live calls.
 **Trade-off.** A cached run doesn't show live model latency, so the label must be visible to be
 honest.
+
+## 13. Reset restores a seeded snapshot
+
+**Context.** A demo reset re-ran the whole seed through the pipeline: about 5 s on a laptop but
+about 87 s on the free Render instance, long enough to break the flow of a live demo.
+**Decision.** The freshly seeded database is kept as a snapshot (the image's `/app/seed-data`,
+or `DATA_DIR/seed-snapshot/` locally) and a reset copies it into the live database with SQLite's
+online backup API, under the same reset lock as before. Saved model readings are carried over. A
+local snapshot records a fingerprint of the code, prompts, policy, specs and world and is ignored
+once any of them changes; with no current snapshot, or if the restore fails, the reset reseeds.
+**Trade-off.** One extra copy of a few-MB database on disk, and the fingerprint is coarse: any
+code edit means the next local reset is a slow reseed.
+
+## 14. Keep setup and CPU work off the run path
+
+**Context.** On the free 0.1 vCPU instance a run took several times longer than its model calls.
+The first live run in a process paid for importing the model SDK and building a client (about
+8 s), every run opened a new connection, and OCR rasterised scans at 300 dpi in colour.
+**Decision.** One live model client per process, built in a background thread at startup and
+shared by all runs; OCR at the scan's own resolution (150 to 300 dpi) in greyscale; the PDF opened
+once per read; SQLite `synchronous=NORMAL` in WAL mode. Measurements are in `docs/PERFORMANCE.md`.
+**Trade-off.** The warm-up spends CPU right after boot, competing with the first requests on a
+tiny instance. With `synchronous=NORMAL` an OS crash or power cut can lose the last few commits
+(never corrupt the database); an app crash loses nothing.
+
+## 15. Unseen documents as a standing test
+
+**Context.** Fifteen scenarios drawn with four templates say little about invoices the system
+hasn't seen.
+**Decision.** Ten deliberately different documents (two pages, sideways scan, phone photo,
+unregistered trader, USD invoice, credit note, e-invoice, discount and TCS, two invoices in one
+file, delivery challan) ship with the demo world, with ground truth and an expected outcome.
+They run offline in the tests and live in `docs/ROBUSTNESS.md`. The fixes they drove stay in
+code, not in the prompt: the model's job is unchanged, and every new behaviour (several invoices
+in one file, a bill without a heading, a foreign currency) is decided from printed strings.
+**Trade-off.** The pack is still synthetic, and a handful of documents can only show that each
+kind of difference is handled, not how often real files differ in that way.
+
+## 16. Per-client limits in front of the model budget
+
+**Context.** The hourly live-reading budget protects the provider quota, but one client sending
+a stream of new PDFs could use all of it and leave the demo without live readings.
+**Decision.** A token bucket per client address limits how fast runs can be started, and each
+address gets its own share of the hourly live readings. A run that would need a reading no
+budget can cover is refused up front with a 429 and a plain explanation, before anything is
+stored. Saved readings are always free.
+**Trade-off.** In-memory and per process: fine for one API process, not for several; and many
+users behind one address share one bucket.

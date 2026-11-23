@@ -320,6 +320,16 @@
             "title": "Filename",
             "type": "string"
           },
+          "group": {
+            "default": "scenario",
+            "description": "scenario: the 15 demo scenarios; stress: unseen out-of-distribution files",
+            "enum": [
+              "scenario",
+              "stress"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
           "is_edge_case": {
             "title": "Is Edge Case",
             "type": "boolean"
@@ -860,6 +870,14 @@
             ],
             "title": "Invoice Number Canonical"
           },
+          "invoices_in_file": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Invoices In File",
+            "type": "array"
+          },
           "legibility": {
             "title": "Legibility",
             "type": "string"
@@ -902,6 +920,14 @@
           "prices_include_tax": {
             "title": "Prices Include Tax",
             "type": "boolean"
+          },
+          "referenced_invoices": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Referenced Invoices",
+            "type": "array"
           },
           "round_off": {
             "$ref": "#/components/schemas/FieldValue"
@@ -2887,6 +2913,7 @@
           "DOC_PROFORMA",
           "DOC_CREDIT_NOTE",
           "DOC_UNREADABLE",
+          "DOC_MULTIPLE_INVOICES",
           "FIELD_MISSING_INVOICE_NUMBER",
           "FIELD_MISSING_INVOICE_DATE",
           "FIELD_MISSING_TOTAL",
@@ -2940,6 +2967,19 @@
       },
       "ResetResponse": {
         "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "mode": {
+            "description": "snapshot: the seeded database was restored; reseed: rebuilt via the pipeline",
+            "enum": [
+              "snapshot",
+              "reseed"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "runs": {
             "title": "Runs",
             "type": "integer"
@@ -2952,7 +2992,9 @@
         },
         "required": [
           "status",
-          "runs"
+          "runs",
+          "mode",
+          "duration_ms"
         ],
         "title": "ResetResponse",
         "type": "object"
@@ -4374,6 +4416,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Demo Inbox",
@@ -4435,6 +4487,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Reset Demo",
@@ -4452,7 +4514,7 @@
             "name": "doc_id",
             "required": true,
             "schema": {
-              "pattern": "^S\\d{2}$",
+              "pattern": "^[SU]\\d{2}$",
               "title": "Doc Id",
               "type": "string"
             }
@@ -4525,6 +4587,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Create Demo Run",
@@ -4607,6 +4679,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Policy",
@@ -4676,6 +4758,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Update Policy",
@@ -4748,6 +4840,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Preview Policy",
@@ -4852,6 +4954,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "List Purchase Orders",
@@ -4924,6 +5036,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Purchase Order",
@@ -5003,6 +5125,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Queue",
@@ -5185,6 +5317,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "List Runs",
@@ -5193,6 +5335,7 @@
         ]
       },
       "post": {
+        "description": "Checks, in order: rate limit (429), the file itself (413/422), whether a fresh model\nreading fits this client's and the global hourly budget (429), then starts the run.",
         "operationId": "create_run",
         "requestBody": {
           "content": {
@@ -5254,6 +5397,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Create Run",
@@ -5326,6 +5479,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Run",
@@ -5398,9 +5561,114 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Run Audit",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{run_id}/audit.pdf": {
+      "get": {
+        "description": "One-page summary (decision, key numbers, next step), then checks, extracted fields, stage\ntimeline, review actions and decision history.",
+        "operationId": "get_run_audit_pdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "Audit record (PDF)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Access code missing or wrong"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict with the run's state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
+          }
+        },
+        "summary": "Get Run Audit Pdf",
         "tags": [
           "runs"
         ]
@@ -5482,6 +5750,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Run Document",
@@ -5587,6 +5865,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Stream Run Events",
@@ -5692,6 +5980,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Run Page",
@@ -5774,6 +6072,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Review Run",
@@ -5849,6 +6157,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "Get Stats",
@@ -5914,6 +6232,16 @@
               }
             },
             "description": "Invalid request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests or model readings"
           }
         },
         "summary": "List Vendors",

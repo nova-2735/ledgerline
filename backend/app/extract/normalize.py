@@ -14,7 +14,9 @@ CENT = Decimal("0.01")
 
 # --- amounts, quantities, rates ---------------------------------------------------------------
 
-_CURRENCY = re.compile(r"(₹|\bINR\b|\bRs\b\.?|Rs\.)", re.IGNORECASE)
+_CURRENCY = re.compile(
+    r"(₹|\bINR\b|\bRs\b\.?|Rs\.|US\$|\bUSD\b|\$|€|\bEUR\b|£|\bGBP\b)", re.IGNORECASE
+)
 _NUM = re.compile(r"^\d+(?:\.\d+)?$")
 
 
@@ -202,10 +204,27 @@ def invoice_number_valid(text: str | None) -> bool:
     return bool(text and _INVOICE_NO.match(text.strip().upper()))
 
 
+_CURRENCY_CODES = {
+    "₹": "INR", "RS": "INR", "INR": "INR", "RUPEES": "INR", "RUPEE": "INR",
+    "$": "USD", "US$": "USD", "USD": "USD", "US DOLLARS": "USD", "US DOLLAR": "USD",
+    "€": "EUR", "EUR": "EUR", "EURO": "EUR", "EUROS": "EUR",
+    "£": "GBP", "GBP": "GBP", "POUNDS": "GBP",
+}  # fmt: skip
+
+
 def currency_code(text: str | None) -> str:
+    """ISO code for a printed currency name or mark; INR when nothing is printed."""
     if text is None:
         return "INR"
     s = text.strip().upper().rstrip(".")
-    if s in {"₹", "RS", "INR", "RUPEES", ""}:
+    if not s:
         return "INR"
-    return s
+    return _CURRENCY_CODES.get(s, s)
+
+
+def currency_in(text: str | None) -> str | None:
+    """The currency of a printed amount such as "USD 5,212.50" or "$5,212.50", if marked."""
+    if text is None:
+        return None
+    m = _CURRENCY.search(text)
+    return currency_code(m.group(1)) if m else None

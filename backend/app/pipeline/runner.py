@@ -35,6 +35,7 @@ from app.enums import Outcome, RunSource, RunStatus, StageName, StageStatus
 from app.ingest.storage import store_document
 from app.llm.base import (
     BudgetExceededError,
+    ClientBudgetExceededError,
     FakeProviderError,
     LLMClient,
     LLMConfigError,
@@ -49,7 +50,7 @@ from app.models.extraction import InvoiceExtraction
 from app.orm import InvoiceLedgerRow, ReviewActionRow, RunRow
 from app.reference.ledger import BilledLine, Ledger, LedgerEntry
 from app.reference.purchase_orders import get_po
-from app.rules.base import ReviewOverrides, decimal_value, q2, text_value
+from app.rules.base import ReviewOverrides, decimal_value, money_currency, q2, text_value
 from app.rules.registry import STAGES as RULE_STAGES
 
 from .events import emit
@@ -88,6 +89,7 @@ class SubmitMeta:
     sender_name: str | None = None
     sender_email: str | None = None
     subject: str | None = None
+    caller: str | None = None  # client address, for its share of live model readings
 
 
 # --- worker pool and work gate -------------------------------------------------------------------
@@ -261,9 +263,16 @@ def _submit(
         run_id = run.id
     emit(run_id, "run.created", message="Invoice received.", data={"filename": filename})
     if background:
-        schedule(execute, run_id, force_fresh=force_fresh, client=client, polish=polish)
+        schedule(
+            execute,
+            run_id,
+            force_fresh=force_fresh,
+            client=client,
+            polish=polish,
+            caller=meta.caller,
+        )
     else:
-        execute(run_id, force_fresh=force_fresh, client=client, polish=polish)
+        execute(run_id, force_fresh=force_fresh, client=client, polish=polish, caller=meta.caller)
     return run_id
 
 
@@ -274,6 +283,7 @@ def _state(
     client: LLMClient | None,
     polish: bool | None,
     force_fresh: bool = False,
+    caller: str | None = None,
 ) -> RunState:
     doc = run.document
     return RunState(
@@ -286,6 +296,7 @@ def _state(
         client=client or get_client(get_settings()),
         policy=active_policy(),
         sender_email=run.sender_email,
+        caller=caller,
         force_fresh=force_fresh,
         polish=polish,
         overrides=ReviewOverrides.model_validate(run.overrides or {}),
@@ -300,12 +311,15 @@ def execute(
     force_fresh: bool = False,
     client: LLMClient | None = None,
     polish: bool | None = None,
+    caller: str | None = None,
 ) -> None:
     """Run every stage of a queued run."""
     with get_sessionmaker()() as session:
         run = _get(session, run_id)
         try:
-            state = _state(session, run, client=client, polish=polish, force_fresh=force_fresh)
+            state = _state(
+                session, run, client=client, polish=polish, force_fresh=force_fresh, caller=caller
+            )
         except Exception as exc:  # e.g. a missing provider key
             _fail_before_start(session, run, exc)
             return
@@ -376,7 +390,8 @@ def _run_from(state: RunState, start: StageName) -> None:
     current = start
     # From the first rule stage until the outcome is committed, hold the ledger lock: the rules
     # read PO balances and duplicate history, and the outcome writes billing.
-    with ExitStack() as held:
+    currency = state.extraction.currency if state.extraction is not None else "INR"
+    with ExitStack() as held, money_currency(currency):
         try:
             for name in STAGE_ORDER:
                 current = name
@@ -545,6 +560,11 @@ def _finalize(state: RunState) -> None:
 
 
 def friendly_error(stage: StageName, exc: Exception) -> str:
+    if isinstance(exc, ClientBudgetExceededError):
+        return (
+            "This address has used its share of live model readings for this hour. Saved "
+            "readings still work; try again later."
+        )
     if isinstance(exc, BudgetExceededError):
         return (
             "The hourly limit for live model calls has been reached. Try again later; "

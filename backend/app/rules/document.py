@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from decimal import Decimal
 
 from app.enums import DocType, Outcome, ReasonCode, Route, Severity, StageName
 from app.extract.extractor import CRITICAL_FIELDS
 from app.models.checks import CheckResult
-from app.rules.base import Emitter, RuleContext, decimal_value, inr, q2, rule, text_value
+from app.models.extraction import InvoiceExtraction
+from app.rules.base import (
+    Emitter,
+    Rule,
+    RuleContext,
+    decimal_value,
+    inr,
+    q2,
+    rule,
+    text_value,
+)
 
 STAGE = StageName.validate_document
 
@@ -47,11 +58,50 @@ _DOC_NAMES = {
 }
 
 
+# A printed title that asks for payment ("BILL", "Cash Bill", "Bill of Supply", "Invoice") makes
+# a document the model filed under "other" payable after all: small and unregistered suppliers
+# issue plain bills, not GST tax invoices.
+_PAYABLE_TITLE = re.compile(r"\b(invoice|bill)\b", re.IGNORECASE)
+_NOT_PAYABLE_TITLE = re.compile(
+    r"\b(pro-?forma|e-?way|lading|entry|challan|receipt|statement|quotation|estimate|order)\b",
+    re.IGNORECASE,
+)
+
+
+def effective_doc_type(ex: InvoiceExtraction) -> DocType:
+    """The model's classification, except that a bill it filed under "other" is treated as an
+    invoice when it prints a total and either a bill/invoice title or a bill number (and no
+    title such as "Delivery Challan" or "Receipt" says otherwise)."""
+    if ex.doc_type == DocType.other and ex.total.value is not None:
+        title = ex.meta.raw.document_title or ""
+        if _NOT_PAYABLE_TITLE.search(title):
+            return ex.doc_type
+        if _PAYABLE_TITLE.search(title) or text_value(ex.invoice_number):
+            return DocType.tax_invoice
+    return ex.doc_type
+
+
 @rule("D01_doc_type", STAGE)
 def d01_doc_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
-    kind = ctx.extraction.doc_type
+    ex = ctx.extraction
+    kind = effective_doc_type(ex)
     evidence = {"doc_type": kind.value}
     if kind == DocType.tax_invoice:
+        if ex.doc_type != kind:
+            title = ex.meta.raw.document_title
+            why = (
+                f"Titled “{title}”"
+                if title
+                else f"No heading, but it has bill number {text_value(ex.invoice_number)} "
+                f"and a total of {inr(decimal_value(ex.total))}"
+            )
+            return [
+                e.passed(
+                    "Bill for payment",
+                    f"{why}: a bill asking for payment, so it is checked as an invoice.",
+                    evidence | {"model_doc_type": ex.doc_type.value},
+                )
+            ]
         return [e.passed("Tax invoice", "The document is a tax invoice.", evidence)]
     if kind == DocType.proforma_invoice:
         return [
@@ -72,20 +122,29 @@ def d01_doc_type(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
             e.fail(
                 ReasonCode.DOC_CREDIT_NOTE,
                 f"Document is a {label}",
-                f"This is a {label}, not an invoice. An AP clerk needs to match it to the "
-                "original invoice.",
+                "This is a credit note: it lowers what we owe the vendor, so it is booked "
+                "against their account, not paid."
+                if kind == DocType.credit_note
+                else "This is a debit note: it adds a charge to an earlier invoice, so it is "
+                "checked against that invoice before anything is paid.",
                 severity=Severity.high,
                 route=Route.ap_clerk,
                 hint=Outcome.HOLD,
                 evidence=evidence,
             )
         ]
-    name = _DOC_NAMES.get(kind, "not an invoice")
+    title = (ex.meta.raw.document_title or "").strip()
+    name = _DOC_NAMES.get(kind) or (f"a {title.lower()}" if title else None)
+    text = (
+        f"This is {name}, not an invoice, so there is nothing to pay."
+        if name
+        else "This document isn't an invoice, so there is nothing to pay."
+    )
     return [
         e.fail(
             ReasonCode.DOC_NOT_INVOICE,
             "Not an invoice",
-            f"The document is {name}, so it can't be processed as an invoice.",
+            text,
             severity=Severity.high,
             route=Route.none,
             hint=Outcome.REJECT,
@@ -178,11 +237,12 @@ def d03_confidence(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
                 f"{round(threshold * 100)}% confidence.",
             )
         ]
-    listed = ", ".join(f"{f['label']} ({round(f['confidence'] * 100)}%)" for f in low)
+    listed = ", ".join(f"{f['label']} ({round(f['confidence'] * 100)}% sure)" for f in low)
     result = e.fail(
         ReasonCode.FIELD_LOW_CONFIDENCE,
         "Some key fields need a second look",
-        f"Not sure about: {listed}. Check them against the document before approving.",
+        f"These couldn't be confirmed on the page: {listed}. Check them against the document "
+        "before approving.",
         severity=Severity.medium,
         route=Route.ap_clerk,
         hint=Outcome.HOLD,
@@ -389,14 +449,59 @@ def d08_dates(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
     return [e.passed("Invoice date is reasonable", f"Dated {inv_date:%d %b %Y}.", evidence)]
 
 
+@rule("D09_single_invoice", STAGE)
+def d09_single_invoice(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+    found = ctx.extraction.invoices_in_file
+    if len(found) < 2:
+        return [e.passed("One invoice in the file", "No second invoice number heads a page.")]
+    listed = " and ".join(", ".join(found).rsplit(", ", 1))
+    return [
+        e.fail(
+            ReasonCode.DOC_MULTIPLE_INVOICES,
+            f"File contains {len(found)} invoices",
+            f"This PDF contains {len(found)} invoices ({listed}), one after another. Each "
+            "invoice has to be checked and paid on its own, so this file wasn't checked further.",
+            severity=Severity.high,
+            route=Route.ap_clerk,
+            hint=Outcome.HOLD,
+            evidence={"invoices": found},
+        )
+    ]
+
+
+def not_an_invoice(ctx: RuleContext) -> bool:
+    """D01 reports DOC_NOT_INVOICE: field and arithmetic checks would only add noise."""
+    return effective_doc_type(ctx.extraction) not in _INVOICE_LIKE
+
+
+_INVOICE_LIKE = frozenset(
+    {DocType.tax_invoice, DocType.proforma_invoice, DocType.credit_note, DocType.debit_note}
+)
+
+
+def _invoice_only(r: Rule) -> Rule:
+    def fn(ctx: RuleContext, e: Emitter) -> list[CheckResult]:
+        if not_an_invoice(ctx):
+            return [e.skip(r.rule_id, "Skipped: the document is not an invoice.")]
+        return r.fn(ctx, e)
+
+    return Rule(r.rule_id, r.stage, fn)
+
+
 RULES = [
     d00_legible,
     d01_doc_type,
-    d02_required,
-    d03_confidence,
-    d04_line_math,
-    d05_subtotal,
-    d06_total,
-    d07_words,
-    d08_dates,
+    *(
+        _invoice_only(r)
+        for r in (
+            d02_required,
+            d03_confidence,
+            d04_line_math,
+            d05_subtotal,
+            d06_total,
+            d07_words,
+            d08_dates,
+            d09_single_invoice,
+        )  # fmt: skip
+    ),
 ]

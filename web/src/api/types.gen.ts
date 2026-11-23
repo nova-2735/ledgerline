@@ -173,7 +173,11 @@ export interface paths {
         /** List Runs */
         get: operations["list_runs"];
         put?: never;
-        /** Create Run */
+        /**
+         * Create Run
+         * @description Checks, in order: rate limit (429), the file itself (413/422), whether a fresh model
+         *     reading fits this client's and the global hourly budget (429), then starts the run.
+         */
         post: operations["create_run"];
         delete?: never;
         options?: never;
@@ -207,6 +211,27 @@ export interface paths {
         };
         /** Get Run Audit */
         get: operations["get_run_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/audit.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Audit Pdf
+         * @description One-page summary (decision, key numbers, next step), then checks, extracted fields, stage
+         *     timeline, review actions and decision history.
+         */
+        get: operations["get_run_audit_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -431,6 +456,13 @@ export interface components {
             doc_id: string;
             /** Filename */
             filename: string;
+            /**
+             * Group
+             * @description scenario: the 15 demo scenarios; stress: unseen out-of-distribution files
+             * @default scenario
+             * @enum {string}
+             */
+            group: "scenario" | "stress";
             /** Is Edge Case */
             is_edge_case: boolean;
             /** Processed Run Ids */
@@ -611,6 +643,11 @@ export interface components {
             invoice_number: components["schemas"]["FieldValue"];
             /** Invoice Number Canonical */
             invoice_number_canonical: string | null;
+            /**
+             * Invoices In File
+             * @default []
+             */
+            invoices_in_file: string[];
             /** Legibility */
             legibility: string;
             /** Line Items */
@@ -627,6 +664,11 @@ export interface components {
             po_reference_canonical: string | null;
             /** Prices Include Tax */
             prices_include_tax: boolean;
+            /**
+             * Referenced Invoices
+             * @default []
+             */
+            referenced_invoices: string[];
             round_off: components["schemas"]["FieldValue"];
             subtotal: components["schemas"]["FieldValue"];
             supplier_gstin: components["schemas"]["FieldValue"];
@@ -1178,9 +1220,17 @@ export interface components {
          * ReasonCode
          * @enum {string}
          */
-        ReasonCode: "DOC_NOT_INVOICE" | "DOC_PROFORMA" | "DOC_CREDIT_NOTE" | "DOC_UNREADABLE" | "FIELD_MISSING_INVOICE_NUMBER" | "FIELD_MISSING_INVOICE_DATE" | "FIELD_MISSING_TOTAL" | "FIELD_MISSING_SUPPLIER" | "FIELD_LOW_CONFIDENCE" | "MATH_LINE_MISMATCH" | "MATH_SUBTOTAL_MISMATCH" | "MATH_TOTAL_MISMATCH" | "ROUND_OFF_APPLIED" | "TAX_INCLUSIVE_NORMALIZED" | "TOTAL_WORDS_MISMATCH" | "DATE_IN_FUTURE" | "DATE_STALE" | "VENDOR_NOT_FOUND" | "VENDOR_BLOCKED" | "VENDOR_GSTIN_MISMATCH" | "VENDOR_MATCHED_BY_NAME" | "BANK_DETAILS_CHANGED" | "SENDER_DOMAIN_MISMATCH" | "GSTIN_INVALID" | "BUYER_GSTIN_MISMATCH" | "TAX_TYPE_MISMATCH" | "TAX_AMOUNT_MISMATCH" | "TAX_RATE_MISMATCH" | "PO_NOT_FOUND" | "PO_INFERRED" | "PO_AMBIGUOUS" | "PO_MISSING" | "PO_VENDOR_MISMATCH" | "PO_CLOSED" | "CURRENCY_MISMATCH" | "DATE_BEFORE_PO" | "LINE_NOT_ON_PO" | "MISC_CHARGE_ALLOWED" | "LINES_BUNDLED" | "PRICE_VARIANCE_WITHIN_TOL" | "PRICE_VARIANCE_OVER_TOL" | "PRICE_BELOW_PO" | "AMOUNT_VARIANCE_OVER_TOL" | "QTY_EXCEEDS_PO_REMAINING" | "QTY_EXCEEDS_RECEIVED" | "GOODS_NOT_RECEIVED" | "DUPLICATE_SAME_FILE" | "DUPLICATE_SAME_INVOICE" | "DUPLICATE_SUSPECTED" | "APPROVAL_LIMIT_EXCEEDED" | "POSTING_INCOMPLETE";
+        ReasonCode: "DOC_NOT_INVOICE" | "DOC_PROFORMA" | "DOC_CREDIT_NOTE" | "DOC_UNREADABLE" | "DOC_MULTIPLE_INVOICES" | "FIELD_MISSING_INVOICE_NUMBER" | "FIELD_MISSING_INVOICE_DATE" | "FIELD_MISSING_TOTAL" | "FIELD_MISSING_SUPPLIER" | "FIELD_LOW_CONFIDENCE" | "MATH_LINE_MISMATCH" | "MATH_SUBTOTAL_MISMATCH" | "MATH_TOTAL_MISMATCH" | "ROUND_OFF_APPLIED" | "TAX_INCLUSIVE_NORMALIZED" | "TOTAL_WORDS_MISMATCH" | "DATE_IN_FUTURE" | "DATE_STALE" | "VENDOR_NOT_FOUND" | "VENDOR_BLOCKED" | "VENDOR_GSTIN_MISMATCH" | "VENDOR_MATCHED_BY_NAME" | "BANK_DETAILS_CHANGED" | "SENDER_DOMAIN_MISMATCH" | "GSTIN_INVALID" | "BUYER_GSTIN_MISMATCH" | "TAX_TYPE_MISMATCH" | "TAX_AMOUNT_MISMATCH" | "TAX_RATE_MISMATCH" | "PO_NOT_FOUND" | "PO_INFERRED" | "PO_AMBIGUOUS" | "PO_MISSING" | "PO_VENDOR_MISMATCH" | "PO_CLOSED" | "CURRENCY_MISMATCH" | "DATE_BEFORE_PO" | "LINE_NOT_ON_PO" | "MISC_CHARGE_ALLOWED" | "LINES_BUNDLED" | "PRICE_VARIANCE_WITHIN_TOL" | "PRICE_VARIANCE_OVER_TOL" | "PRICE_BELOW_PO" | "AMOUNT_VARIANCE_OVER_TOL" | "QTY_EXCEEDS_PO_REMAINING" | "QTY_EXCEEDS_RECEIVED" | "GOODS_NOT_RECEIVED" | "DUPLICATE_SAME_FILE" | "DUPLICATE_SAME_INVOICE" | "DUPLICATE_SUSPECTED" | "APPROVAL_LIMIT_EXCEEDED" | "POSTING_INCOMPLETE";
         /** ResetResponse */
         ResetResponse: {
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Mode
+             * @description snapshot: the seeded database was restored; reseed: rebuilt via the pipeline
+             * @enum {string}
+             */
+            mode: "snapshot" | "reseed";
             /** Runs */
             runs: number;
             /**
@@ -1633,6 +1683,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     reset_demo: {
@@ -1682,6 +1741,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1744,6 +1812,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1827,6 +1904,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     update_policy: {
@@ -1880,6 +1966,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1947,6 +2042,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_purchase_orders: {
@@ -1999,6 +2103,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2064,6 +2177,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_queue: {
@@ -2115,6 +2237,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2187,6 +2318,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_run: {
@@ -2240,6 +2380,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2305,6 +2454,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_run_audit: {
@@ -2356,6 +2514,84 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_run_audit_pdf: {
+        parameters: {
+            query?: {
+                code?: string | null;
+            };
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit record (PDF) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Access code missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict with the run's state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2423,6 +2659,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     stream_run_events: {
@@ -2477,6 +2722,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2546,6 +2800,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     review_run: {
@@ -2601,6 +2864,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2666,6 +2938,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too many requests or model readings */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_vendors: {
@@ -2715,6 +2996,15 @@ export interface operations {
             };
             /** @description Invalid request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests or model readings */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

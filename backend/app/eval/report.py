@@ -72,7 +72,8 @@ def render(result: EvalResult) -> str:
     ok_fields, all_fields = tally.get("all", {}).get("overall", (0, 0))
     mark = "✅" if result.correct == total and total else "⚠️"
     lines = [
-        f"# Evaluation — {result.provider} · {result.model}",
+        f"# Evaluation{' (stress pack)' if result.pack == 'stress' else ''} — "
+        f"{result.provider} · {result.model}",
         "",
         f"**{mark} {result.correct} of {total} decisions correct** · invoice fields read "
         f"correctly: {_ratio(ok_fields, all_fields)}.",
@@ -80,7 +81,7 @@ def render(result: EvalResult) -> str:
         f"Run on {result.date} · provider `{result.provider}` · model `{result.model}` · "
         f"policy `{result.policy_version}` · "
         + ("fresh model readings (cache bypassed)" if result.force_fresh else "cache allowed")
-        + ". Each scenario starts from a freshly seeded database.",
+        + ". Each document starts from a freshly seeded database.",
         "",
     ]
     if result.notes:

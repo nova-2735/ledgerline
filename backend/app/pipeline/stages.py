@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app import clock
 from app.decide.decision import evaluate, is_active
 from app.decide.policy import Policy
-from app.enums import CheckStatus, ConfidenceLevel, ReasonCode, StageName, StageStatus
+from app.enums import CheckStatus, ConfidenceLevel, StageName, StageStatus
 from app.extract.confidence import HUMAN_VERIFIED_VALIDATOR
 from app.extract.extractor import extract, normalise
 from app.ingest.reader import read_bytes
@@ -30,11 +30,18 @@ from app.models.decision import Decision
 from app.models.extraction import DocumentRead, FieldValue, InvoiceExtraction, RawInvoice
 from app.models.run import StageState
 from app.rules import matching
-from app.rules.base import ReviewOverrides, RuleContext, build_context, inr, text_value
+from app.rules.base import (
+    ReviewOverrides,
+    RuleContext,
+    build_context,
+    inr,
+    set_money_currency,
+    text_value,
+)
 from app.rules.matching import skip_reason
 from app.rules.registry import STAGES as RULE_STAGES
 from app.rules.registry import run_stage as run_rules
-from app.rules.registry import skip_reason_for, skipped_stage, stops_pipeline
+from app.rules.registry import skipped_stage, skips_after
 
 from .events import emit
 
@@ -66,6 +73,7 @@ class RunState:
     client: LLMClient
     policy: Policy
     sender_email: str | None = None
+    caller: str | None = None  # client address of the request that started the run
     force_fresh: bool = False
     polish: bool | None = None
     overrides: ReviewOverrides = field(default_factory=ReviewOverrides)
@@ -73,7 +81,7 @@ class RunState:
     extraction: InvoiceExtraction | None = None
     ctx: RuleContext | None = None
     results: dict[StageName, list[CheckResult]] = field(default_factory=dict)
-    stopped: ReasonCode | None = None
+    skips: dict[StageName, str] = field(default_factory=dict)  # stage → why it is skipped
     matching: MatchingView | None = None
     decision: Decision | None = None
     decision_version: int = 1
@@ -234,12 +242,15 @@ def ensure_doc_read(state: RunState) -> DocumentRead:
 
 
 def extract_fields(state: RunState) -> StageResult:
-    result = extract(state.data, ensure_doc_read(state), state.client, state.force_fresh)
+    result = extract(
+        state.data, ensure_doc_read(state), state.client, state.force_fresh, caller=state.caller
+    )
     for ev in result.events:
         state.log(StageName.extract_fields, ev.message, ev.data)
     state.extraction = apply_corrections(result.extraction, state.overrides, state.doc_read)
     state.cached_extraction = result.extraction.meta.cached
     ex = state.extraction
+    set_money_currency(ex.currency)
     number = text_value(ex.invoice_number)
     supplier = text_value(ex.supplier_name) or "an unnamed supplier"
     total = ex.total.value if isinstance(ex.total.value, Decimal) else None
@@ -411,8 +422,8 @@ def _stage_detail(stage: StageName, state: RunState, checks: list[CheckResult]) 
 def rule_stage(stage: StageName) -> Callable[[RunState], StageResult]:
     def fn(state: RunState) -> StageResult:
         ctx = ensure_context(state)
-        if state.stopped is not None:
-            checks = skipped_stage(stage, skip_reason_for(state.stopped))
+        if stage in state.skips:
+            checks = skipped_stage(stage, state.skips[stage])
             if stage == StageName.match_lines:
                 state.matching = matching.build_view(ctx)
             return StageResult(checks[0].message, checks, {}, StageStatus.skipped)
@@ -422,7 +433,7 @@ def rule_stage(stage: StageName) -> Callable[[RunState], StageResult]:
                 original = as_transcribed(ctx.extraction, ensure_doc_read(state))
                 before = run_rules(stage, dataclasses.replace(ctx, extraction=original, cache={}))
                 checks = keep_corrected_findings(checks, before, ctx)
-            state.stopped = stops_pipeline(checks)
+            state.skips = skips_after(checks)
         detail = _stage_detail(stage, state, checks)
         if stage == StageName.match_lines and skip_reason(ctx) is None:
             call = matching.analyse(ctx).llm_call

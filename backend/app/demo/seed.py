@@ -9,15 +9,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import sqlite3
+import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import func, select
 
 from app import clock, db
 from app.config import get_settings
 from app.decide.policy import overrides_path
+from app.demo import snapshot
 from app.demo.generate import generate
 from app.enums import ActionType, RunSource, RunStatus
 from app.llm.fake import FakeClient
@@ -29,6 +34,7 @@ from app.reference.loader import load_reference
 
 KEEP_TABLES = frozenset({"llm_cache"})  # saved model readings survive a reset
 RESET_WAIT_S = 60.0  # how long a reset waits for in-flight runs and reviews
+log = logging.getLogger(__name__)
 
 
 def world_dir(data_dir: Path | None = None) -> Path:
@@ -70,7 +76,7 @@ def _review_request(review: dict[str, Any]) -> ReviewRequest:
 def seed(
     data_dir: Path | None = None, *, regenerate: bool = False, wait_s: float | None = None
 ) -> int:
-    """Rebuild the demo database. Returns the number of runs created.
+    """Rebuild the demo database through the pipeline. Returns the number of runs created.
 
     New uploads and reviews are refused while this runs; in-flight work gets `wait_s` seconds to
     finish (default `RESET_WAIT_S`), else `runner.ResetTimeout` is raised and nothing is touched."""
@@ -78,7 +84,50 @@ def seed(
     with runner.exclusive(RESET_WAIT_S if wait_s is None else wait_s):
         if regenerate or not (world / "manifest.json").is_file():
             generate(world)
-        return _reseed(world)
+        return _reseed_and_save(world)
+
+
+@dataclass(frozen=True)
+class ResetResult:
+    runs: int
+    mode: Literal["snapshot", "reseed"]
+    duration_ms: int
+
+
+def reset(wait_s: float | None = None) -> ResetResult:
+    """Put the demo back to its seeded state: restore the seeded snapshot when there is a current
+    one (seconds), else reseed through the pipeline (a minute or more). Same locking as `seed`."""
+    start = time.perf_counter()
+    settings = get_settings()
+    world = world_dir()
+    with runner.exclusive(RESET_WAIT_S if wait_s is None else wait_s):
+        source = snapshot.find_snapshot(settings)
+        mode: Literal["snapshot", "reseed"] = "reseed"
+        if source is not None:
+            try:
+                snapshot.restore(settings, source)
+                overrides_path().unlink(missing_ok=True)
+                mode = "snapshot"
+            except sqlite3.Error:
+                log.exception("restoring the seeded snapshot failed; reseeding instead")
+        if mode == "reseed":
+            if not (world / "manifest.json").is_file():
+                generate(world)
+            runs = _reseed_and_save(world)
+        else:
+            runs = _count_runs()
+    return ResetResult(runs, mode, int((time.perf_counter() - start) * 1000))
+
+
+def _reseed_and_save(world: Path) -> int:
+    runs = _reseed(world)
+    snapshot.save_local(get_settings(), runs)
+    return runs
+
+
+def _count_runs() -> int:
+    with db.get_sessionmaker()() as session:
+        return int(session.scalar(select(func.count()).select_from(RunRow)) or 0)
 
 
 def _reseed(world: Path) -> int:
@@ -116,8 +165,7 @@ def _reseed(world: Path) -> int:
                     run_id, _review_request(review), background=False, client=client, polish=False
                 )
 
-    with db.get_sessionmaker()() as session:
-        return int(session.scalar(select(func.count()).select_from(RunRow)) or 0)
+    return _count_runs()
 
 
 def _awaiting(run_id: int) -> bool:
